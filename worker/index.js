@@ -25,7 +25,7 @@ async function digest(value) {
 }
 async function passwordHash(password, salt) {
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits'])
-  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: new TextEncoder().encode(salt), iterations: 210000, hash: 'SHA-256' }, key, 256)
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: new TextEncoder().encode(salt), iterations: 100000, hash: 'SHA-256' }, key, 256)
   return hex(bits)
 }
 function safeUser(row) {
@@ -99,7 +99,7 @@ async function api(request, env) {
     const validKey = typeof input.setupKey === 'string' && typeof env.BOOTSTRAP_SETUP_KEY === 'string' && input.setupKey.length === env.BOOTSTRAP_SETUP_KEY.length && await digest(input.setupKey) === await digest(env.BOOTSTRAP_SETUP_KEY)
     if (!validKey || !validEmail(input.email) || input.email.trim().toLowerCase() !== env.BOOTSTRAP_ADMIN_EMAIL?.toLowerCase()) return response({ error: 'El enlace de configuración no es válido.' }, 403)
     if (!input.name?.trim() || !validPassword(input.password)) return response({ error: 'Indica tu nombre y una contraseña de al menos 12 caracteres.' }, 400)
-    await env.DB.batch(initialRoles.map((role) => env.DB.prepare('INSERT INTO roles (id,name,permissions) VALUES (?,?,?)').bind(role.id, role.name, JSON.stringify(role.permissions))))
+    await env.DB.batch(initialRoles.map((role) => env.DB.prepare('INSERT OR IGNORE INTO roles (id,name,permissions) VALUES (?,?,?)').bind(role.id, role.name, JSON.stringify(role.permissions))))
     const user = await createUser(env, { name: input.name, email: input.email, password: input.password }, 'admin')
     const token = await createSession(env, user.id)
     return response({ user, role: initialRoles[0] }, 201, { 'set-cookie': cookie(token) })
