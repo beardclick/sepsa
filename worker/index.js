@@ -548,7 +548,7 @@ async function api(request, env) {
           target,
         )
         .run()
-      if (target === user.id && input.password)
+      if (input.password)
         await env.DB.prepare('DELETE FROM sessions WHERE user_id=?')
           .bind(target)
           .run()

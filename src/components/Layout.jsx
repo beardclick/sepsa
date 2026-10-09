@@ -120,6 +120,35 @@ function NavList({ onNavigate, expandedMenu, setExpandedMenu }) {
   )
 }
 
+function AccountIdentity({ user, role }) {
+  return (
+    <div
+      className="flex items-center gap-3 rounded-xl border border-line bg-soft p-3"
+      aria-label="Cuenta conectada"
+    >
+      <div className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-sm font-bold text-accent-fg">
+        {(user?.nombre || '')
+          .split(' ')
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((word) => word[0])
+          .join('')
+          .toUpperCase()}
+      </div>
+      <div className="min-w-0 leading-tight">
+        <div className="text-sm font-semibold">{user?.nombre}</div>
+        <div
+          className="mt-1 break-all text-xs text-muted"
+          title={user?.username}
+        >
+          {user?.username}
+        </div>
+        <div className="mt-1 text-xs text-muted">{role?.nombre}</div>
+      </div>
+    </div>
+  )
+}
+
 export default function Layout() {
   const { user, role, logout, storageError } = useStore()
   const [open, setOpen] = useState(false)
@@ -155,15 +184,7 @@ export default function Layout() {
             setExpandedMenu={setExpandedMenu}
           />
         </div>
-        <div className="flex items-center gap-3 rounded-xl border border-line bg-soft p-3">
-          <div className="grid size-9 place-items-center rounded-full bg-accent text-sm font-bold text-accent-fg">
-            AD
-          </div>
-          <div className="leading-tight">
-            <div className="text-sm font-semibold">{user?.nombre}</div>
-            <div className="text-xs text-muted">{role?.nombre}</div>
-          </div>
-        </div>
+        <AccountIdentity user={user} role={role} />
       </aside>
 
       {/* Drawer móvil */}
@@ -191,6 +212,7 @@ export default function Layout() {
                 onNavigate={() => setOpen(false)}
               />
             </div>
+            <AccountIdentity user={user} role={role} />
           </aside>
         </div>
       )}

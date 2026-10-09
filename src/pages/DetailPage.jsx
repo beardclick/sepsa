@@ -14,6 +14,7 @@ import { Badge, Button, Card, Icon, Modal, Thumb } from '../components/ui'
 import { display } from '../components/DataTable'
 import ShiftPlanner from '../components/ShiftPlanner'
 import RecordForm from '../components/RecordForm'
+import AgentAccess from '../components/AgentAccess'
 import MapView from '../components/MapView'
 import { downloadPdf } from '../files'
 import Pagination from '../components/Pagination'
@@ -609,6 +610,8 @@ export default function DetailPage({ resKey }) {
           )}
         </div>
       </div>
+
+      {resKey === 'agents' && <AgentAccess key={row.id} agent={row} />}
 
       <Card className="p-5 sm:p-6">
         <div className="flex flex-col gap-5 sm:flex-row sm:flex-wrap sm:items-center">

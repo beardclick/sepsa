@@ -23,6 +23,8 @@ import SettingsPage from '../src/pages/SettingsPage'
 import CatalogPage from '../src/pages/CatalogPage'
 import AccessPage from '../src/pages/AccessPage'
 import RecordForm from '../src/components/RecordForm'
+import AgentAccess from '../src/components/AgentAccess'
+import Layout from '../src/components/Layout'
 import App from '../src/App'
 import IncidentNotifications from '../src/components/IncidentNotifications'
 import ShiftPlanner from '../src/components/ShiftPlanner'
@@ -744,5 +746,61 @@ describe('Alta automática de acceso de agente', () => {
     expect(
       api.data.agents.every((a) => a.lat === undefined && a.lng === undefined),
     ).toBe(true)
+  })
+})
+
+describe('Acceso de agentes existentes e identidad de la sesión', () => {
+  it('edita el correo y restablece la contraseña manteniendo la misma cuenta vinculada', async () => {
+    mount(<AgentAccess agent={buildSeed().agents[0]} />)
+    const previous = await credentials('Anterior-clave-2026')
+    act(() =>
+      api.add('users', {
+        nombre: 'Agente existente',
+        username: 'anterior@example.com',
+        role: 'agent',
+        agent: 'a1',
+        activo: true,
+        ...previous,
+      }),
+    )
+    const accessId = api.data.users.find((u) => u.agent === 'a1').id
+    fireEvent.click(screen.getByRole('button', { name: 'Editar acceso' }))
+    expect(screen.getByLabelText('Correo de acceso').value).toBe(
+      'anterior@example.com',
+    )
+    fireEvent.change(screen.getByLabelText('Correo de acceso'), {
+      target: { value: 'nuevo-correo@example.com' },
+    })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Restablecer contraseña' }),
+    )
+    fireEvent.change(screen.getByLabelText(/Nueva contraseña/), {
+      target: { value: 'Nueva-clave-segura-2026' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar acceso' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    const saved = api.data.users.find((u) => u.id === accessId)
+    expect(saved).toMatchObject({
+      username: 'nuevo-correo@example.com',
+      role: 'agent',
+      agent: 'a1',
+    })
+    expect(saved.passwordHash).not.toBe(previous.passwordHash)
+    expect(saved.passwordHash).toBe(
+      await passwordHash('Nueva-clave-segura-2026', saved.salt),
+    )
+    expect(saved.password).toBeUndefined()
+  })
+  it('muestra el correo conectado tanto en escritorio como en el menú móvil', () => {
+    mount(<Layout />)
+    act(() =>
+      api.update('users', 'test', { username: 'conectado@example.com' }),
+    )
+    expect(screen.getByLabelText('Cuenta conectada').textContent).toContain(
+      'conectado@example.com',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
+    expect(screen.getAllByLabelText('Cuenta conectada')).toHaveLength(2)
+    expect(screen.getAllByText('conectado@example.com')).toHaveLength(2)
   })
 })

@@ -529,6 +529,7 @@ export function StoreProvider({ children }) {
                 ...d,
                 [col]: d[col].map((row) => (row.id === id ? saved : row)),
               }))
+              if (col === 'users' && user?.id === id) setCloudUser(saved)
               if (col === 'roles' && user?.role === id) setCloudRole(saved)
               return true
             }

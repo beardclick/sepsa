@@ -221,6 +221,32 @@ try {
     admin.cookie,
   )
   assert.equal((await closing)[0], 1008)
+  const newEmail = `updated-agent-${suffix}@example.com`
+  const newPassword = 'New-agent-password-2026'
+  const resetAccess = await request(
+    `/api/admin/users/${agent.user.id}`,
+    'PATCH',
+    { email: newEmail, password: newPassword },
+    admin.cookie,
+  )
+  assert.equal(resetAccess.status, 200)
+  assert.equal(resetAccess.user.agent, agentId)
+  assert.equal(resetAccess.user.username, newEmail)
+  assert.equal(
+    (await request('/api/auth/me', 'GET', undefined, agentLogin.cookie)).status,
+    401,
+  )
+  assert.equal(
+    (await request('/api/auth/login', 'POST', { email: newEmail, password }))
+      .status,
+    401,
+  )
+  const newLogin = await request('/api/auth/login', 'POST', {
+    email: newEmail,
+    password: newPassword,
+  })
+  assert.equal(newLogin.status, 200)
+  assert.equal(newLogin.user.id, agent.user.id)
   console.log(
     'PASS: D1 compartido, identidad del agente, avisos entre sesiones, exclusión del creador, permisos y revocación.',
   )
