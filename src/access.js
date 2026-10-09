@@ -4,6 +4,7 @@ export const MODULES = {
   agents: 'Agentes',
   contracts: 'Contratos',
   shifts: 'Turnos y calendario',
+  rounds: 'Rondas',
   incidents: 'Incidentes',
   equipment: 'Equipos y categorías',
   leads: 'Prospectos',
@@ -37,9 +38,10 @@ export function initialRoles() {
     {
       id: 'chief',
       nombre: 'Jefes de seguridad',
-      permissions: Object.fromEntries(
-        ops.map((k) => [k, ['view', 'create', 'update']]),
-      ),
+      permissions: Object.fromEntries([
+        ...ops.map((k) => [k, ['view', 'create', 'update']]),
+        ['rounds', ['view']],
+      ]),
     },
     {
       id: 'supervisor',
@@ -47,6 +49,7 @@ export function initialRoles() {
       permissions: Object.fromEntries(
         [
           'dashboard',
+          'rounds',
           'agents',
           'shifts',
           'incidents',
@@ -73,6 +76,7 @@ export const moduleForPath = (path) =>
     agentes: 'agents',
     contratos: 'contracts',
     turnos: 'shifts',
+    rondas: 'rounds',
     calendario: 'shifts',
     incidentes: 'incidents',
     equipos: 'equipment',
@@ -90,6 +94,7 @@ export const homeFor = (permissions) =>
     agents: '/agentes',
     contracts: '/contratos',
     shifts: '/turnos',
+    rounds: '/rondas',
     incidents: '/incidentes',
     equipment: '/equipos',
     leads: '/prospectos',

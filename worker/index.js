@@ -1,3 +1,4 @@
+import { handleRounds } from './rounds.js'
 import { handleShifts } from './shifts.js'
 import { handleIncidents } from './incidents.js'
 export { IncidentHub } from './incident-hub.js'
@@ -14,6 +15,7 @@ const moduleKeys = [
   'agents',
   'contracts',
   'shifts',
+  'rounds',
   'incidents',
   'equipment',
   'leads',
@@ -42,9 +44,10 @@ const initialRoles = [
   {
     id: 'chief',
     name: 'Jefes de seguridad',
-    permissions: Object.fromEntries(
-      ops.map((key) => [key, ['view', 'create', 'update']]),
-    ),
+    permissions: Object.fromEntries([
+      ...ops.map((key) => [key, ['view', 'create', 'update']]),
+      ['rounds', ['view']],
+    ]),
   },
   {
     id: 'supervisor',
@@ -52,6 +55,7 @@ const initialRoles = [
     permissions: Object.fromEntries(
       [
         'dashboard',
+        'rounds',
         'agents',
         'shifts',
         'incidents',
@@ -359,6 +363,7 @@ async function api(request, env) {
         })
       : response({ error: 'No has iniciado sesión.' }, 401)
   if (!user) return response({ error: 'No has iniciado sesión.' }, 401)
+  if (path.startsWith('/api/rounds')) return handleRounds(request, env, user)
   if (path.startsWith('/api/shifts')) return handleShifts(request, env, user)
   if (path.startsWith('/api/incidents') || path === '/api/incident-directory')
     return handleIncidents(

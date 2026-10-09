@@ -8,7 +8,8 @@ const suffix = Date.now()
 const sockets = [],
   created = [],
   users = [],
-  shifts = []
+  shifts = [],
+  rounds = []
 async function request(path, method = 'GET', body, cookie) {
   const response = await fetch(`${base}${path}`, {
     method,
@@ -200,6 +201,131 @@ try {
     email: supervisor.user.username,
     password,
   })
+  const chief = await request(
+    '/api/admin/users',
+    'POST',
+    {
+      name: 'Jefe rondas',
+      email: `chief-${suffix}@example.com`,
+      password,
+      roleId: 'chief',
+    },
+    admin.cookie,
+  )
+  assert.equal(chief.status, 201)
+  users.push(chief.user.id)
+  const chiefLogin = await request('/api/auth/login', 'POST', {
+    email: chief.user.username,
+    password,
+  })
+  const roundInput = {
+    titulo: 'Ronda nocturna',
+    lugar: 'David, puesto central',
+    fecha: '2026-10-10',
+    inicio: '22:00',
+    fin: '01:00',
+    asignados: [supervisor.user.id, chief.user.id],
+    comentarios: 'Revisar accesos',
+  }
+  assert.equal(
+    (await request('/api/rounds', 'POST', roundInput, supervisorLogin.cookie))
+      .status,
+    403,
+  )
+  assert.equal(
+    (await request('/api/rounds', 'GET', undefined, agentLogin.cookie)).status,
+    403,
+  )
+  assert.equal(
+    (
+      await request(
+        '/api/rounds',
+        'POST',
+        { ...roundInput, asignados: [agent.user.id] },
+        admin.cookie,
+      )
+    ).status,
+    400,
+  )
+  const round = await request('/api/rounds', 'POST', roundInput, admin.cookie)
+  assert.equal(round.status, 201, JSON.stringify(round))
+  rounds.push(round.round.id)
+  const hidden = await request(
+    '/api/rounds',
+    'POST',
+    { ...roundInput, titulo: 'Solo jefe', asignados: [chief.user.id] },
+    admin.cookie,
+  )
+  assert.equal(hidden.status, 201)
+  rounds.push(hidden.round.id)
+  const supervisorRounds = await request(
+    '/api/rounds',
+    'GET',
+    undefined,
+    supervisorLogin.cookie,
+  )
+  assert.equal(supervisorRounds.rounds.length, 1)
+  assert.equal(supervisorRounds.rounds[0].id, round.round.id)
+  const chiefRounds = await request(
+    '/api/rounds',
+    'GET',
+    undefined,
+    chiefLogin.cookie,
+  )
+  assert.equal(chiefRounds.rounds.length, 2)
+  assert.equal(chiefRounds.rounds[0].id, hidden.round.id)
+  assert.equal(
+    (
+      await request(
+        '/api/rounds/' + round.round.id,
+        'PATCH',
+        roundInput,
+        chiefLogin.cookie,
+      )
+    ).status,
+    403,
+  )
+  assert.equal(
+    (
+      await request(
+        '/api/rounds/' + round.round.id,
+        'DELETE',
+        undefined,
+        supervisorLogin.cookie,
+      )
+    ).status,
+    403,
+  )
+  assert.equal(
+    (
+      await request(
+        '/api/rounds/' + round.round.id,
+        'PATCH',
+        { ...roundInput, asignados: [chief.user.id] },
+        admin.cookie,
+      )
+    ).status,
+    200,
+  )
+  assert.equal(
+    (await request('/api/rounds', 'GET', undefined, supervisorLogin.cookie))
+      .rounds.length,
+    0,
+  )
+  assert.equal(
+    (
+      await request(
+        '/api/rounds/' + hidden.round.id,
+        'DELETE',
+        undefined,
+        admin.cookie,
+      )
+    ).status,
+    200,
+  )
+  console.log(
+    'PASS: rondas compartidas, asignación múltiple, aislamiento y CRUD exclusivo del administrador.',
+  )
   const adminLive = await connect(admin.cookie),
     supervisorLive = await connect(supervisorLogin.cookie)
   const saved = await request(
@@ -350,6 +476,8 @@ try {
 } finally {
   for (const socket of sockets) socket.close()
   if (admin?.cookie) {
+    for (const id of rounds)
+      await request(`/api/rounds/${id}`, 'DELETE', undefined, admin.cookie)
     for (const id of shifts)
       await request(`/api/shifts/${id}`, 'DELETE', undefined, admin.cookie)
     for (const id of created)

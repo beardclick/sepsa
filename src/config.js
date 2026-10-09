@@ -402,6 +402,7 @@ export const NAV = [
     section: 'Operaciones',
   },
   nav('shifts', 'Operaciones'),
+  { to: '/rondas', label: 'Rondas', icon: 'MapPin', section: 'Operaciones' },
   nav('agents', 'Operaciones'),
   nav('incidents', 'Operaciones'),
   nav('equipment', 'Operaciones'),

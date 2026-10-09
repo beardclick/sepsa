@@ -1,3 +1,4 @@
+import RoundsPage from './pages/RoundsPage'
 import { useEffect, useRef } from 'react'
 import {
   HashRouter,
@@ -107,6 +108,7 @@ export default function App() {
               path="contratos/servicios"
               element={<CatalogPage collection="serviceTypes" />}
             />
+            <Route path="rondas" element={<RoundsPage />} />
             <Route path="informes" element={<ReportsPage />} />
             <Route path="usuarios" element={<AccessPage />} />
             <Route path="portal-agente" element={<AgentPortal />} />
