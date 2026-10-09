@@ -2,8 +2,20 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "crm-seguridad",
   "compatibility_date": "2026-10-08",
+  "vars": {
+    "BOOTSTRAP_ADMIN_EMAIL": "info@seguridadespecializada.com"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "crm-seguridad-db",
+      "database_id": "213e466e-5548-4a0b-8b75-0867011331f1"
+    }
+  ],
+  "main": "./worker/index.js",
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
     "not_found_handling": "single-page-application"
   }
 }

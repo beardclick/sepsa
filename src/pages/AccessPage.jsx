@@ -3,7 +3,7 @@ import { useStore } from '../store'
 import { MODULES, ACTIONS, credentials } from '../access'
 import { Button, Card, Modal } from '../components/ui'
 export default function AccessPage() {
-  const { data, user, can, add, update, remove } = useStore()
+  const { data, user, can, add, update, remove, authStatus } = useStore()
   const [editing, setEditing] = useState(null),
     [role, setRole] = useState(null),
     [error, setError] = useState(''),
@@ -32,9 +32,9 @@ export default function AccessPage() {
         throw new Error('Este agente ya tiene un acceso.')
       if (
         (!editing.id && !editing.password) ||
-        (editing.password && editing.password.length < 8)
+        (editing.password && editing.password.length < (authStatus.available ? 12 : 8))
       )
-        throw new Error('La contraseña debe tener al menos 8 caracteres.')
+        throw new Error(`La contraseña debe tener al menos ${authStatus.available ? 12 : 8} caracteres.`)
       const original = data.users.find((u) => u.id === editing.id)
       if (
         original?.role === 'admin' &&
@@ -47,9 +47,10 @@ export default function AccessPage() {
       const { password, ...values } = editing
       values.nombre = values.nombre.trim()
       values.username = values.username.trim()
-      if (password) Object.assign(values, await credentials(password))
-      if (editing.id) update('users', editing.id, values)
-      else add('users', values)
+      if (authStatus.available) values.password = password
+      else if (password) Object.assign(values, await credentials(password))
+      if (editing.id) await update('users', editing.id, values)
+      else await add('users', values)
       setEditing(null)
     } catch (e) {
       setError(e.message)
@@ -193,7 +194,7 @@ export default function AccessPage() {
           >
             {[
               ['nombre', 'Nombre'],
-              ['username', 'Usuario'],
+              ['username', authStatus.available ? 'Correo electrónico' : 'Usuario'],
               [
                 'password',
                 editing.id ? 'Nueva contraseña (opcional)' : 'Contraseña',
@@ -203,8 +204,9 @@ export default function AccessPage() {
                 {label}
                 <input
                   className="input mt-1"
-                  type={key === 'password' ? 'password' : 'text'}
+                  type={key === 'password' ? 'password' : key === 'username' && authStatus.available ? 'email' : 'text'}
                   required={key !== 'password' || !editing.id}
+                  minLength={key === 'password' && authStatus.available ? 12 : undefined}
                   autoComplete={key === 'password' ? 'new-password' : 'off'}
                   value={editing[key]}
                   onChange={(e) => patch({ [key]: e.target.value })}
@@ -262,7 +264,7 @@ export default function AccessPage() {
           onClose={() => setRole(null)}
           footer={
             <Button
-              onClick={() => {
+              onClick={async () => {
                 const nombre = role.nombre.trim()
                 if (!nombre) return setError('Escribe el nombre del rol.')
                 if (
@@ -275,9 +277,11 @@ export default function AccessPage() {
                   return setError('Ya existe ese rol.')
                 if (role.id === 'admin')
                   role.permissions.users = Object.keys(ACTIONS)
-                if (role.id) update('roles', role.id, { ...role, nombre })
-                else add('roles', { ...role, nombre })
-                setRole(null)
+                try {
+                  if (role.id) await update('roles', role.id, { ...role, nombre })
+                  else await add('roles', { ...role, nombre })
+                  setRole(null)
+                } catch (e) { setError(e.message) }
               }}
             >
               Guardar permisos
@@ -355,9 +359,11 @@ export default function AccessPage() {
               </Button>
               <Button
                 variant="danger"
-                onClick={() => {
-                  remove(deleting.collection, deleting.row.id)
-                  setDeleting(null)
+                onClick={async () => {
+                  try {
+                    await remove(deleting.collection, deleting.row.id)
+                    setDeleting(null)
+                  } catch (e) { setError(e.message); setDeleting(null) }
                 }}
               >
                 Eliminar
