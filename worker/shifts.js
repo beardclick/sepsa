@@ -51,8 +51,12 @@ export async function handleShifts(request, env, user) {
     if (!manager && !user.roleData.permissions?.portal?.includes('view'))
       return json({ error: 'No tienes permiso para ver turnos.' }, 403)
     const rows = manager
-      ? await env.DB.prepare('SELECT id,payload FROM shifts').all()
-      : await env.DB.prepare('SELECT id,payload FROM shifts WHERE agent_id=?')
+      ? await env.DB.prepare(
+          'SELECT id,payload FROM shifts ORDER BY rowid DESC',
+        ).all()
+      : await env.DB.prepare(
+          'SELECT id,payload FROM shifts WHERE agent_id=? ORDER BY rowid DESC',
+        )
           .bind(user.agent || '__unassigned__')
           .all()
     return json({
@@ -77,6 +81,11 @@ export async function handleShifts(request, env, user) {
         throw new Error('Envía entre 1 y 100 turnos.')
       const records = items.map((item) => ({
         ...prepare(item),
+        ...(imported
+          ? Number.isFinite(Date.parse(item.createdAt))
+            ? { createdAt: new Date(item.createdAt).toISOString() }
+            : {}
+          : { createdAt: new Date().toISOString() }),
         id:
           imported && /^[\w-]+$/.test(item.id) ? item.id : crypto.randomUUID(),
         shared: true,
@@ -109,10 +118,15 @@ export async function handleShifts(request, env, user) {
       return json({ ok: true })
     }
     try {
-      const shift = prepare({
-        ...JSON.parse(row.payload),
-        ...(await request.json()),
-      })
+      const shift = {
+        ...prepare({
+          ...JSON.parse(row.payload),
+          ...(await request.json()),
+        }),
+        ...(JSON.parse(row.payload).createdAt
+          ? { createdAt: JSON.parse(row.payload).createdAt }
+          : {}),
+      }
       await env.DB.prepare('UPDATE shifts SET agent_id=?,payload=? WHERE id=?')
         .bind(shift.agente, JSON.stringify(shift), match[1])
         .run()

@@ -1,3 +1,4 @@
+import { newestFirst } from '../recordOrder'
 import { useState } from 'react'
 import { useStore } from '../store'
 import { RESOURCES, fdate } from '../config'
@@ -60,7 +61,9 @@ export default function AgentPortal() {
   ]
     .map((n) => String(n).padStart(2, '0'))
     .join(':')
-  const incidents = data.incidents.filter((i) => i.agente === agent.id)
+  const incidents = newestFirst(
+    data.incidents.filter((i) => i.agente === agent.id),
+  )
   return (
     <div className="space-y-5">
       <Card className="p-5">

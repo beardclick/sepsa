@@ -1,3 +1,4 @@
+import { newestFirst } from '../recordOrder'
 import { useState } from 'react'
 import { useStore } from '../store'
 import {
@@ -235,33 +236,31 @@ export default function ReportsPage() {
           {!data.reports.length && (
             <p className="text-sm text-muted">Sin informes.</p>
           )}
-          {[...data.reports]
-            .sort((a, b) => b.fecha.localeCompare(a.fecha))
-            .map((r) => (
-              <div
-                key={r.id}
-                className="flex flex-wrap items-center gap-3 rounded-xl border border-line p-3"
-              >
-                <div className="mr-auto">
-                  <p className="font-semibold">Informe {fdate(r.fecha)}</p>
-                  <p className="text-xs text-muted">
-                    {r.sections
-                      .filter((s) => can(s.key))
-                      .map((s) => s.title)
-                      .join(' · ')}
-                  </p>
-                </div>
-                <Button variant="ghost" onClick={() => setSelected(r.id)}>
-                  Ver
-                </Button>
-                <Button onClick={() => download(r)}>Descargar PDF</Button>
-                {can('reports', 'update') && (
-                  <Button variant="ghost" onClick={() => openCreator(r)}>
-                    Actualizar
-                  </Button>
-                )}
+          {newestFirst(data.reports).map((r) => (
+            <div
+              key={r.id}
+              className="flex flex-wrap items-center gap-3 rounded-xl border border-line p-3"
+            >
+              <div className="mr-auto">
+                <p className="font-semibold">Informe {fdate(r.fecha)}</p>
+                <p className="text-xs text-muted">
+                  {r.sections
+                    .filter((s) => can(s.key))
+                    .map((s) => s.title)
+                    .join(' · ')}
+                </p>
               </div>
-            ))}
+              <Button variant="ghost" onClick={() => setSelected(r.id)}>
+                Ver
+              </Button>
+              <Button onClick={() => download(r)}>Descargar PDF</Button>
+              {can('reports', 'update') && (
+                <Button variant="ghost" onClick={() => openCreator(r)}>
+                  Actualizar
+                </Button>
+              )}
+            </div>
+          ))}
         </div>
       </Card>
       {report && (

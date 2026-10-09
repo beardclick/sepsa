@@ -1,3 +1,4 @@
+import { newestFirst } from '../recordOrder'
 import { useMemo, useState } from 'react'
 import { useLocation, useParams } from 'react-router-dom'
 import { Link, useNavigate } from '../nav'
@@ -251,16 +252,11 @@ function Related({ rel, row, resKey, data, navigationState }) {
   const target = RESOURCES[rel.res]
   const key = rel.via ? row[rel.via] : row.id
   const items = useMemo(() => {
-    const dateKey = target.fields.find((f) =>
-      ['fecha', 'inicio'].includes(f.key),
-    )?.key
-    return data[target.collection]
-      .filter(
+    return newestFirst(
+      data[target.collection].filter(
         (r) => r[rel.by] === key && !(rel.res === resKey && r.id === row.id),
-      )
-      .sort((a, b) =>
-        dateKey ? String(b[dateKey]).localeCompare(String(a[dateKey])) : 0,
-      )
+      ),
+    )
   }, [data, target, rel, key, row.id, resKey])
 
   const [page, setPage] = useState(1)

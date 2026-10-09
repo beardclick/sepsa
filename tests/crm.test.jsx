@@ -92,6 +92,38 @@ describe('Datos y formatos', () => {
   })
 })
 describe('Permisos y operación', () => {
+  it('ordena incidentes por creación y conserva el orden al editar', () => {
+    mount(<ResourcePage resKey="incidents" />)
+    const old = {
+      ...api.data.incidents[0],
+      id: 'old-order',
+      titulo: 'Antiguo Z',
+      fecha: '2026-12-01',
+      createdAt: '2026-10-01T00:00:00Z',
+    }
+    const recent = {
+      ...old,
+      id: 'new-order',
+      titulo: 'Reciente A',
+      fecha: '2026-01-01',
+      createdAt: '2026-10-08T00:00:00Z',
+    }
+    act(() => api.replaceAll({ ...api.data, incidents: [old, recent] }))
+    const first = () => within(screen.getByRole('table')).getAllByRole('row')[1]
+    expect(first().textContent).toContain('Reciente A')
+    act(() =>
+      api.update('incidents', old.id, {
+        titulo: 'Editado Z',
+        createdAt: '2026-12-30T00:00:00Z',
+      }),
+    )
+    expect(first().textContent).toContain('Reciente A')
+    expect(api.data.incidents.find((r) => r.id === old.id).createdAt).toBe(
+      old.createdAt,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Título/ }))
+    expect(first().textContent).toContain('Editado Z')
+  })
   it('bloquea mutaciones no permitidas al supervisor y oculta acciones de equipos', () => {
     mount(<ResourcePage resKey="equipment" />, 'supervisor')
     const count = api.data.equipment.length

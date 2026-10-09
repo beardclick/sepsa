@@ -136,6 +136,10 @@ try {
   )
   assert.equal(scheduled.status, 201)
   shifts.push(...scheduled.shifts.map((s) => s.id))
+  assert.equal(
+    (await request('/api/shifts', 'GET', undefined, admin.cookie)).shifts[0].id,
+    shifts[1],
+  )
   const myShifts = await request(
     '/api/shifts',
     'GET',
@@ -183,6 +187,14 @@ try {
     (await request('/api/shifts', 'GET', undefined, agentLogin.cookie))
       .shifts[0].fin,
     '07:00',
+  )
+  const orderedShifts = (
+    await request('/api/shifts', 'GET', undefined, admin.cookie)
+  ).shifts
+  assert.equal(orderedShifts[0].id, shifts[1])
+  assert.equal(
+    orderedShifts.find((s) => s.id === shifts[0]).createdAt,
+    scheduled.shifts[0].createdAt,
   )
   const supervisorLogin = await request('/api/auth/login', 'POST', {
     email: supervisor.user.username,

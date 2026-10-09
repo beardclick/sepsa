@@ -483,7 +483,10 @@ export function StoreProvider({ children }) {
             }
             setData((d) => ({
               ...d,
-              agents: [{ ...profile, id }, ...d.agents],
+              agents: [
+                { ...profile, id, createdAt: new Date().toISOString() },
+                ...d.agents,
+              ],
               users: [access, ...d.users],
             }))
             return id
@@ -501,7 +504,14 @@ export function StoreProvider({ children }) {
             })
             setData((d) => ({
               ...d,
-              agents: [{ ...profile, id: result.agentId }, ...d.agents],
+              agents: [
+                {
+                  ...profile,
+                  id: result.agentId,
+                  createdAt: new Date().toISOString(),
+                },
+                ...d.agents,
+              ],
               users: can('users') ? [result.user, ...d.users] : d.users,
             }))
             return result.agentId
@@ -565,6 +575,7 @@ export function StoreProvider({ children }) {
             {
               ...item,
               id,
+              createdAt: new Date().toISOString(),
               ...(col === 'incidents' ? { createdBy: user.id } : {}),
             },
             ...d[col],
@@ -603,6 +614,7 @@ export function StoreProvider({ children }) {
           ...s,
           id: uid('s'),
           estado: 'Programado',
+          createdAt: new Date().toISOString(),
         }))
         if (authStatus.available)
           return (async () => {
@@ -705,7 +717,14 @@ export function StoreProvider({ children }) {
         setData((d) => ({
           ...d,
           [col]: d[col].map((r) =>
-            r.id === id ? { ...r, ...patch, id: r.id } : r,
+            r.id === id
+              ? {
+                  ...r,
+                  ...patch,
+                  id: r.id,
+                  ...(r.createdAt ? { createdAt: r.createdAt } : {}),
+                }
+              : r,
           ),
         }))
         return true
@@ -824,6 +843,7 @@ export function StoreProvider({ children }) {
             {
               ...item,
               id: uid('i'),
+              createdAt: new Date().toISOString(),
               createdBy: user.id,
               agente: agent.id,
               cliente: agent.sitio,

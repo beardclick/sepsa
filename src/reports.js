@@ -18,6 +18,7 @@ export const REPORT_SECTIONS = {
 export function makeReport(data, fecha, sections, comentarios = '') {
   return {
     id: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
     fecha,
     comentarios,
     generado: new Date().toISOString(),

@@ -1,3 +1,4 @@
+import { newestFirst } from '../recordOrder'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowDownAZ, ArrowUpAZ, Plus, Search, Inbox, X } from 'lucide-react'
@@ -72,7 +73,7 @@ export default function ResourcePage({ resKey }) {
   }, [items, q, filter, category, from, to, cfg, dateField, data])
 
   const sorted = useMemo(() => {
-    if (!sort) return rows
+    if (!sort) return newestFirst(rows)
     const f = cfg.fields.find((x) => x.key === sort.key)
     const m = sort.dir === 'asc' ? 1 : -1
     return [...rows].sort((a, b) => {
@@ -316,7 +317,7 @@ export default function ResourcePage({ resKey }) {
                 )
               }
             >
-              <option value="">Sin orden</option>
+              <option value="">Más recientes primero</option>
               {cols.map((c) => (
                 <option key={c.key} value={c.key}>
                   Ordenar: {c.label}

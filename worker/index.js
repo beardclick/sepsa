@@ -419,7 +419,7 @@ async function api(request, env) {
     if (!can('view'))
       return response({ error: 'No tienes permiso para ver usuarios.' }, 403)
     const result = await env.DB.prepare(
-      'SELECT id,name,email,role_id,active,agent_id FROM users ORDER BY name',
+      'SELECT id,name,email,role_id,active,agent_id FROM users ORDER BY created_at DESC,rowid DESC',
     ).all()
     return response({ users: result.results.map(safeUser) })
   }
@@ -427,7 +427,7 @@ async function api(request, env) {
     if (!can('view'))
       return response({ error: 'No tienes permiso para ver roles.' }, 403)
     const result = await env.DB.prepare(
-      'SELECT id,name,permissions FROM roles ORDER BY name',
+      'SELECT id,name,permissions FROM roles ORDER BY created_at DESC,rowid DESC',
     ).all()
     return response({ roles: result.results.map(safeRole) })
   }
