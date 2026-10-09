@@ -32,9 +32,12 @@ export default function AccessPage() {
         throw new Error('Este agente ya tiene un acceso.')
       if (
         (!editing.id && !editing.password) ||
-        (editing.password && editing.password.length < (authStatus.available ? 12 : 8))
+        (editing.password &&
+          editing.password.length < (authStatus.available ? 12 : 8))
       )
-        throw new Error(`La contraseña debe tener al menos ${authStatus.available ? 12 : 8} caracteres.`)
+        throw new Error(
+          `La contraseña debe tener al menos ${authStatus.available ? 12 : 8} caracteres.`,
+        )
       const original = data.users.find((u) => u.id === editing.id)
       if (
         original?.role === 'admin' &&
@@ -61,8 +64,8 @@ export default function AccessPage() {
   return (
     <div className="space-y-5">
       <p className="text-sm text-muted">
-        Administra usuarios, contraseñas y permisos por módulo. Asocia los
-        accesos de agentes con su ficha.
+        Administra las cuentas y permisos de administradores, jefes y
+        supervisores. Los accesos de agentes se gestionan desde sus fichas.
       </p>
       <Card className="p-5">
         <div className="mb-4 flex justify-between">
@@ -86,48 +89,36 @@ export default function AccessPage() {
           )}
         </div>
         <div className="space-y-3">
-          {data.users.map((u) => (
-            <div
-              key={u.id}
-              className="flex flex-wrap items-center gap-3 rounded-xl border border-line p-3"
-            >
-              <div className="mr-auto">
-                <p className="font-semibold">
-                  {u.nombre} {u.id === user.id ? '(tú)' : ''}
-                </p>
-                <p className="text-xs text-muted">
-                  {u.username} ·{' '}
-                  {data.roles.find((r) => r.id === u.role)?.nombre} ·{' '}
-                  {u.activo ? 'Activo' : 'Inactivo'}
-                </p>
+          {data.users
+            .filter((u) => u.role !== 'agent')
+            .map((u) => (
+              <div
+                key={u.id}
+                className="flex flex-wrap items-center gap-3 rounded-xl border border-line p-3"
+              >
+                <div className="mr-auto">
+                  <p className="font-semibold">
+                    {u.nombre} {u.id === user.id ? '(tú)' : ''}
+                  </p>
+                  <p className="text-xs text-muted">
+                    {u.username} ·{' '}
+                    {data.roles.find((r) => r.id === u.role)?.nombre} ·{' '}
+                    {u.activo ? 'Activo' : 'Inactivo'}
+                  </p>
+                </div>
+                {can('users', 'update') && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setEditing({ ...u, password: '' })
+                      setError('')
+                    }}
+                  >
+                    Editar
+                  </Button>
+                )}
               </div>
-              {can('users', 'update') && (
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setEditing({ ...u, password: '' })
-                    setError('')
-                  }}
-                >
-                  Editar
-                </Button>
-              )}
-              {can('users', 'delete') && (
-                <Button
-                  variant="ghost"
-                  disabled={
-                    u.id === user.id ||
-                    (u.role === 'admin' &&
-                      data.users.filter((x) => x.role === 'admin' && x.activo)
-                        .length <= 1)
-                  }
-                  onClick={() => setDeleting({ collection: 'users', row: u })}
-                >
-                  Eliminar
-                </Button>
-              )}
-            </div>
-          ))}
+            ))}
         </div>
       </Card>
       <Card className="p-5">
@@ -145,36 +136,27 @@ export default function AccessPage() {
           )}
         </div>
         <div className="space-y-3">
-          {data.roles.map((r) => (
-            <div
-              key={r.id}
-              className="flex flex-wrap items-center gap-3 rounded-xl border border-line p-3"
-            >
-              <span className="mr-auto font-semibold">{r.nombre}</span>
-              {can('users', 'update') && (
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setRole(structuredClone(r))
-                    setError('')
-                  }}
-                >
-                  Permisos
-                </Button>
-              )}
-              {can('users', 'delete') && (
-                <Button
-                  variant="ghost"
-                  disabled={
-                    r.id === 'admin' || data.users.some((u) => u.role === r.id)
-                  }
-                  onClick={() => setDeleting({ collection: 'roles', row: r })}
-                >
-                  Eliminar
-                </Button>
-              )}
-            </div>
-          ))}
+          {data.roles
+            .filter((r) => r.id !== 'agent')
+            .map((r) => (
+              <div
+                key={r.id}
+                className="flex flex-wrap items-center gap-3 rounded-xl border border-line p-3"
+              >
+                <span className="mr-auto font-semibold">{r.nombre}</span>
+                {can('users', 'update') && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setRole(structuredClone(r))
+                      setError('')
+                    }}
+                  >
+                    Permisos
+                  </Button>
+                )}
+              </div>
+            ))}
         </div>
       </Card>
       {editing && (
@@ -182,9 +164,28 @@ export default function AccessPage() {
           title={editing.id ? 'Editar usuario' : 'Añadir usuario'}
           onClose={() => setEditing(null)}
           footer={
-            <Button disabled={busy} form="user-form">
-              Guardar
-            </Button>
+            <>
+              {editing.id && can('users', 'delete') && (
+                <Button
+                  variant="ghost"
+                  disabled={
+                    editing.id === user.id ||
+                    (editing.role === 'admin' &&
+                      data.users.filter((x) => x.role === 'admin' && x.activo)
+                        .length <= 1)
+                  }
+                  onClick={() => {
+                    setDeleting({ collection: 'users', row: editing })
+                    setEditing(null)
+                  }}
+                >
+                  Eliminar
+                </Button>
+              )}
+              <Button disabled={busy} form="user-form">
+                Guardar
+              </Button>
+            </>
           }
         >
           <form
@@ -194,7 +195,10 @@ export default function AccessPage() {
           >
             {[
               ['nombre', 'Nombre'],
-              ['username', authStatus.available ? 'Correo electrónico' : 'Usuario'],
+              [
+                'username',
+                authStatus.available ? 'Correo electrónico' : 'Usuario',
+              ],
               [
                 'password',
                 editing.id ? 'Nueva contraseña (opcional)' : 'Contraseña',
@@ -204,9 +208,17 @@ export default function AccessPage() {
                 {label}
                 <input
                   className="input mt-1"
-                  type={key === 'password' ? 'password' : key === 'username' && authStatus.available ? 'email' : 'text'}
+                  type={
+                    key === 'password'
+                      ? 'password'
+                      : key === 'username' && authStatus.available
+                        ? 'email'
+                        : 'text'
+                  }
                   required={key !== 'password' || !editing.id}
-                  minLength={key === 'password' && authStatus.available ? 12 : undefined}
+                  minLength={
+                    key === 'password' && authStatus.available ? 12 : undefined
+                  }
                   autoComplete={key === 'password' ? 'new-password' : 'off'}
                   value={editing[key]}
                   onChange={(e) => patch({ [key]: e.target.value })}
@@ -220,28 +232,16 @@ export default function AccessPage() {
                 value={editing.role}
                 onChange={(e) => patch({ role: e.target.value })}
               >
-                {data.roles.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.nombre}
-                  </option>
-                ))}
+                {data.roles
+                  .filter((r) => r.id !== 'agent')
+                  .map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.nombre}
+                    </option>
+                  ))}
               </select>
             </label>
-            <label className="text-sm">
-              Agente asociado
-              <select
-                className="input mt-1"
-                value={editing.agent || ''}
-                onChange={(e) => patch({ agent: e.target.value })}
-              >
-                <option value="">Sin agente</option>
-                {data.agents.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.nombre}
-                  </option>
-                ))}
-              </select>
-            </label>
+
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -263,29 +263,49 @@ export default function AccessPage() {
           title="Permisos del rol"
           onClose={() => setRole(null)}
           footer={
-            <Button
-              onClick={async () => {
-                const nombre = role.nombre.trim()
-                if (!nombre) return setError('Escribe el nombre del rol.')
-                if (
-                  data.roles.some(
-                    (r) =>
-                      r.id !== role.id &&
-                      r.nombre.toLowerCase() === nombre.toLowerCase(),
+            <>
+              {role.id && can('users', 'delete') && (
+                <Button
+                  variant="ghost"
+                  disabled={
+                    role.id === 'admin' ||
+                    data.users.some((u) => u.role === role.id)
+                  }
+                  onClick={() => {
+                    setDeleting({ collection: 'roles', row: role })
+                    setRole(null)
+                  }}
+                >
+                  Eliminar
+                </Button>
+              )}
+              <Button
+                onClick={async () => {
+                  const nombre = role.nombre.trim()
+                  if (!nombre) return setError('Escribe el nombre del rol.')
+                  if (
+                    data.roles.some(
+                      (r) =>
+                        r.id !== role.id &&
+                        r.nombre.toLowerCase() === nombre.toLowerCase(),
+                    )
                   )
-                )
-                  return setError('Ya existe ese rol.')
-                if (role.id === 'admin')
-                  role.permissions.users = Object.keys(ACTIONS)
-                try {
-                  if (role.id) await update('roles', role.id, { ...role, nombre })
-                  else await add('roles', { ...role, nombre })
-                  setRole(null)
-                } catch (e) { setError(e.message) }
-              }}
-            >
-              Guardar permisos
-            </Button>
+                    return setError('Ya existe ese rol.')
+                  if (role.id === 'admin')
+                    role.permissions.users = Object.keys(ACTIONS)
+                  try {
+                    if (role.id)
+                      await update('roles', role.id, { ...role, nombre })
+                    else await add('roles', { ...role, nombre })
+                    setRole(null)
+                  } catch (e) {
+                    setError(e.message)
+                  }
+                }}
+              >
+                Guardar permisos
+              </Button>
+            </>
           }
         >
           <label className="block text-sm">
@@ -363,7 +383,10 @@ export default function AccessPage() {
                   try {
                     await remove(deleting.collection, deleting.row.id)
                     setDeleting(null)
-                  } catch (e) { setError(e.message); setDeleting(null) }
+                  } catch (e) {
+                    setError(e.message)
+                    setDeleting(null)
+                  }
                 }}
               >
                 Eliminar

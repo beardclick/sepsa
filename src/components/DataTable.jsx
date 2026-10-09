@@ -1,12 +1,5 @@
 import { Link } from '../nav'
-import {
-  ArrowDown,
-  ArrowUp,
-  ChevronsUpDown,
-  Eye,
-  Pencil,
-  Trash2,
-} from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronsUpDown, Eye, Pencil } from 'lucide-react'
 import { Badge, Thumb } from './ui'
 import { RESOURCES, money, fdate, ftime, titleOf } from '../config'
 
@@ -29,7 +22,7 @@ export function display(field, value, data) {
   return String(value)
 }
 
-function Actions({ to, onEdit, onDelete }) {
+function Actions({ to, onEdit }) {
   return (
     <div className="flex justify-end gap-1">
       <Link
@@ -49,15 +42,6 @@ function Actions({ to, onEdit, onDelete }) {
           <Pencil className="size-4" />
         </button>
       )}
-      {onDelete && (
-        <button
-          onClick={onDelete}
-          aria-label="Eliminar"
-          className="rounded-lg p-2 text-muted hover:bg-red-500/10 hover:text-red-500 cursor-pointer"
-        >
-          <Trash2 className="size-4" />
-        </button>
-      )}
     </div>
   )
 }
@@ -67,7 +51,6 @@ export default function DataTable({
   rows,
   data,
   onEdit,
-  onDelete,
   sort,
   onSort,
 }) {
@@ -159,7 +142,6 @@ export default function DataTable({
                   <Actions
                     to={href(r)}
                     onEdit={onEdit ? () => onEdit(r) : null}
-                    onDelete={onDelete ? () => onDelete(r) : null}
                   />
                 </td>
               </tr>
@@ -176,11 +158,7 @@ export default function DataTable({
               <div className="min-w-0 font-semibold">
                 <Cell field={first} row={r} />
               </div>
-              <Actions
-                to={href(r)}
-                onEdit={onEdit ? () => onEdit(r) : null}
-                onDelete={onDelete ? () => onDelete(r) : null}
-              />
+              <Actions to={href(r)} onEdit={onEdit ? () => onEdit(r) : null} />
             </div>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm">
               {rest.map((c) => (

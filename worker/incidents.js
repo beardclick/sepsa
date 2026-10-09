@@ -75,8 +75,7 @@ async function prepare(input, user, env, imported = false) {
     cliente,
     agenteNombre,
     clienteNombre,
-    fecha:
-      imported && /^\d{4}-\d{2}-\d{2}$/.test(input.fecha) ? input.fecha : day(),
+    fecha: /^\d{4}-\d{2}-\d{2}$/.test(input.fecha) ? input.fecha : day(),
     estado:
       imported && ['Abierto', 'En curso', 'Resuelto'].includes(input.estado)
         ? input.estado

@@ -67,20 +67,7 @@ export default function CatalogPage({ collection }) {
                 Editar
               </Button>
             )}
-            {can(module, 'delete') && (
-              <Button
-                variant="ghost"
-                disabled={used(r)}
-                title={
-                  used(r)
-                    ? 'Reasigna los registros que usan este catálogo antes de eliminarlo.'
-                    : ''
-                }
-                onClick={() => setDeleting(r)}
-              >
-                Eliminar
-              </Button>
-            )}
+
             {used(r) && <span className="text-xs text-muted">En uso</span>}
           </div>
         ))}
@@ -89,7 +76,23 @@ export default function CatalogPage({ collection }) {
         <Modal
           title={editing.id ? 'Editar' : 'Agregar'}
           onClose={() => setEditing(null)}
-          footer={<Button form="catalog-form">Guardar</Button>}
+          footer={
+            <>
+              {editing.id && can(module, 'delete') && (
+                <Button
+                  variant="ghost"
+                  disabled={used(editing)}
+                  onClick={() => {
+                    setDeleting(editing)
+                    setEditing(null)
+                  }}
+                >
+                  Eliminar
+                </Button>
+              )}
+              <Button form="catalog-form">Guardar</Button>
+            </>
+          }
         >
           <form id="catalog-form" onSubmit={save}>
             <label className="block text-sm">

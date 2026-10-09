@@ -7,7 +7,8 @@ const password = 'Local-only-test-password-2026'
 const suffix = Date.now()
 const sockets = [],
   created = [],
-  users = []
+  users = [],
+  shifts = []
 async function request(path, method = 'GET', body, cookie) {
   const response = await fetch(`${base}${path}`, {
     method,
@@ -106,6 +107,83 @@ try {
     email: agent.user.username,
     password,
   })
+  const scheduled = await request(
+    '/api/shifts',
+    'POST',
+    {
+      shifts: [
+        {
+          agente: agentId,
+          cliente: 'site-test',
+          fecha: '2026-10-08',
+          inicio: '18:00',
+          fin: '06:00',
+          estado: 'Programado',
+          agenteNombre: 'Agente de pruebas',
+          clienteNombre: 'Puesto de pruebas',
+        },
+        {
+          agente: 'other-agent',
+          cliente: 'other-site',
+          fecha: '2026-10-08',
+          inicio: '06:00',
+          fin: '18:00',
+          estado: 'Programado',
+        },
+      ],
+    },
+    admin.cookie,
+  )
+  assert.equal(scheduled.status, 201)
+  shifts.push(...scheduled.shifts.map((s) => s.id))
+  const myShifts = await request(
+    '/api/shifts',
+    'GET',
+    undefined,
+    agentLogin.cookie,
+  )
+  assert.equal(myShifts.status, 200)
+  assert.equal(myShifts.shifts.length, 1)
+  assert.equal(myShifts.shifts[0].agente, agentId)
+  assert.equal(myShifts.shifts[0].fin, '06:00')
+  assert.equal(
+    (
+      await request(
+        '/api/shifts',
+        'POST',
+        scheduled.shifts[0],
+        agentLogin.cookie,
+      )
+    ).status,
+    403,
+  )
+  assert.equal(
+    (
+      await request(
+        `/api/shifts/${shifts[0]}`,
+        'PATCH',
+        { fin: '07:00' },
+        agentLogin.cookie,
+      )
+    ).status,
+    403,
+  )
+  assert.equal(
+    (
+      await request(
+        `/api/shifts/${shifts[0]}`,
+        'PATCH',
+        { fin: '07:00' },
+        admin.cookie,
+      )
+    ).status,
+    200,
+  )
+  assert.equal(
+    (await request('/api/shifts', 'GET', undefined, agentLogin.cookie))
+      .shifts[0].fin,
+    '07:00',
+  )
   const supervisorLogin = await request('/api/auth/login', 'POST', {
     email: supervisor.user.username,
     password,
@@ -119,6 +197,7 @@ try {
       titulo: 'Reporte del agente',
       severidad: 'Alta',
       descripcion: 'Integración local',
+      fecha: '2026-10-01',
       agente: 'otro-agente',
       cliente: 'otro-puesto',
       createdBy: 'falso',
@@ -206,6 +285,12 @@ try {
     supervisorLogin.cookie,
   )
   assert.equal(updated.status, 200)
+  assert.equal(
+    (
+      await request('/api/incidents', 'GET', undefined, agentLogin.cookie)
+    ).incidents.find((i) => i.id === saved.incident.id).estado,
+    'Resuelto',
+  )
   assert.equal(updated.incident.createdBy, agent.user.id)
   await request(
     `/api/admin/users/${supervisor.user.id}`,
@@ -253,6 +338,8 @@ try {
 } finally {
   for (const socket of sockets) socket.close()
   if (admin?.cookie) {
+    for (const id of shifts)
+      await request(`/api/shifts/${id}`, 'DELETE', undefined, admin.cookie)
     for (const id of created)
       await request(`/api/incidents/${id}`, 'DELETE', undefined, admin.cookie)
     for (const id of users)

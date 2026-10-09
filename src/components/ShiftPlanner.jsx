@@ -37,7 +37,8 @@ export default function ShiftPlanner({
     })),
   )
   const [skip, setSkip] = useState(false),
-    [error, setError] = useState('')
+    [error, setError] = useState(''),
+    [busy, setBusy] = useState(false)
   const patchWeek = (index, patch) =>
     setWeeks((current) =>
       current.map((week, i) => (i === index ? { ...week, ...patch } : week)),
@@ -48,10 +49,20 @@ export default function ShiftPlanner({
     if (!agent || !client) return setError('Selecciona el agente y el puesto.')
     if (!candidates.length)
       return setError('Selecciona los días de al menos una semana.')
+    const finish = (result) => {
+      setBusy(false)
+      if (result.error) return setError(result.error)
+      onCreated?.(result)
+      onClose()
+    }
     const result = addShiftPlan(candidates, skip)
-    if (result.error) return setError(result.error)
-    onCreated?.(result)
-    onClose()
+    if (result?.then) {
+      setBusy(true)
+      result.then(finish).catch((e) => {
+        setBusy(false)
+        setError(e.message)
+      })
+    } else finish(result)
   }
   return (
     <Modal
@@ -65,6 +76,7 @@ export default function ShiftPlanner({
           </Button>
           <Button
             disabled={
+              busy ||
               !candidates.length ||
               (conflicts.length > 0 && !skip) ||
               !accepted.length

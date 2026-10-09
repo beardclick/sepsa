@@ -17,14 +17,22 @@ export async function incidentRequest(path, method = 'GET', input) {
 export function withIncidentNames(item, data) {
   return {
     ...item,
-    agenteNombre:
-      data.agents.find((a) => a.id === item.agente)?.nombre ||
-      item.agenteNombre ||
-      '',
-    clienteNombre:
-      data.clients.find((c) => c.id === item.cliente)?.nombre ||
-      item.clienteNombre ||
-      '',
+    ...(item.agente !== undefined || item.agenteNombre !== undefined
+      ? {
+          agenteNombre:
+            data.agents.find((a) => a.id === item.agente)?.nombre ||
+            item.agenteNombre ||
+            '',
+        }
+      : {}),
+    ...(item.cliente !== undefined || item.clienteNombre !== undefined
+      ? {
+          clienteNombre:
+            data.clients.find((c) => c.id === item.cliente)?.nombre ||
+            item.clienteNombre ||
+            '',
+        }
+      : {}),
   }
 }
 export async function syncAgentProfile(agentId, data) {

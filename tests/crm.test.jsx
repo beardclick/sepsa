@@ -156,7 +156,7 @@ describe('Permisos y operación', () => {
       titulo: 'Novedad',
       agente: 'a1',
       cliente: 'c1',
-      fecha: reportDate(),
+      fecha: '2000-01-01',
       estado: 'Abierto',
     })
     expect(screen.getByText('Novedad')).toBeTruthy()
@@ -304,6 +304,9 @@ describe('Edición desde fichas relacionadas', () => {
       within(
         screen.getByRole('region', { name: 'Equipo asignado' }),
       ).getAllByRole('link')[0],
+    )
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'Editar', exact: true })[0],
     )
     fireEvent.click(
       screen.getAllByRole('button', { name: 'Eliminar', exact: true })[0],
@@ -802,5 +805,111 @@ describe('Acceso de agentes existentes e identidad de la sesión', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
     expect(screen.getAllByLabelText('Cuenta conectada')).toHaveLength(2)
     expect(screen.getAllByText('conectado@example.com')).toHaveLength(2)
+  })
+})
+
+describe('Panel operativo del agente y acciones de edición', () => {
+  it('cuenta los segundos restantes de un turno nocturno y detecta su final', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-08T23:59:58-05:00'))
+    let rendered
+    try {
+      rendered = mount(<AgentPortal />, 'agent')
+      act(() =>
+        window.dispatchEvent(
+          new StorageEvent('storage', {
+            key: 'sepsa-crm-data-v3',
+            newValue: JSON.stringify({
+              ...api.data,
+              shifts: [
+                {
+                  id: 'night',
+                  agente: 'a1',
+                  cliente: 'c1',
+                  fecha: '2026-10-08',
+                  inicio: '18:00',
+                  fin: '00:00',
+                  estado: 'Programado',
+                },
+              ],
+            }),
+          }),
+        ),
+      )
+      expect(screen.getByRole('timer').textContent).toBe('00:00:02')
+      act(() => vi.advanceTimersByTime(1000))
+      expect(screen.getByRole('timer').textContent).toBe('00:00:01')
+      act(() => vi.advanceTimersByTime(1000))
+      expect(screen.queryByRole('timer')).toBeNull()
+      expect(screen.getByText('Fuera de turno')).toBeTruthy()
+    } finally {
+      rendered?.unmount()
+      vi.useRealTimers()
+    }
+  })
+  it('ofrece fecha y severidad al reportar y muestra los estados actualizados', () => {
+    mount(<AgentPortal />, 'agent')
+    fireEvent.click(screen.getByRole('button', { name: 'Reportar incidente' }))
+    expect(screen.getByLabelText('Fecha')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Severidad'), {
+      target: { value: 'Crítica' },
+    })
+    expect(screen.getByLabelText('Severidad').value).toBe('Crítica')
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+    act(() =>
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: 'sepsa-crm-data-v3',
+          newValue: JSON.stringify({
+            ...api.data,
+            incidents: [
+              {
+                id: 'resolved',
+                titulo: 'Seguimiento actualizado',
+                agente: 'a1',
+                fecha: '2026-10-01',
+                estado: 'Resuelto',
+                severidad: 'Alta',
+              },
+            ],
+          }),
+        }),
+      ),
+    )
+    expect(screen.getByText('Seguimiento actualizado')).toBeTruthy()
+    expect(screen.getByText('Resuelto')).toBeTruthy()
+  })
+  it('permite eliminar un registro únicamente después de abrir su edición', () => {
+    mount(<ResourcePage resKey="equipment" />)
+    expect(screen.queryByRole('button', { name: 'Eliminar' })).toBeNull()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Editar' })[0])
+    expect(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'Eliminar',
+      }),
+    ).toBeTruthy()
+  })
+  it('oculta cuentas y rol de agentes de la administración sin borrar sus accesos', () => {
+    mount(<AccessPage />)
+    act(() => {
+      api.add('users', {
+        nombre: 'Agente oculto',
+        username: 'agente@example.com',
+        role: 'agent',
+        agent: 'a1',
+        activo: true,
+      })
+      api.add('users', {
+        nombre: 'Supervisor visible',
+        username: 'supervisor@example.com',
+        role: 'supervisor',
+        activo: true,
+      })
+    })
+    expect(screen.queryByText('Agente oculto')).toBeNull()
+    expect(screen.queryByText('Agentes', { exact: true })).toBeNull()
+    expect(screen.getByText('Supervisor visible')).toBeTruthy()
+    expect(api.data.users.some((u) => u.role === 'agent')).toBe(true)
+    expect(screen.queryByRole('button', { name: 'Eliminar' })).toBeNull()
   })
 })

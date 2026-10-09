@@ -1,3 +1,4 @@
+import { handleShifts } from './shifts.js'
 import { handleIncidents } from './incidents.js'
 export { IncidentHub } from './incident-hub.js'
 const SESSION_COOKIE = 'sepsa_session'
@@ -358,6 +359,7 @@ async function api(request, env) {
         })
       : response({ error: 'No has iniciado sesión.' }, 401)
   if (!user) return response({ error: 'No has iniciado sesión.' }, 401)
+  if (path.startsWith('/api/shifts')) return handleShifts(request, env, user)
   if (path.startsWith('/api/incidents') || path === '/api/incident-directory')
     return handleIncidents(
       request,

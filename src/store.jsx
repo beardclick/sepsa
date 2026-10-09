@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { buildSeed } from './seed'
+import { useCloudShifts } from './cloudShifts'
 import { SERVICES } from './config'
 import { initialRoles } from './access'
 import { makeReport, reportDate } from './reports'
@@ -47,6 +48,7 @@ export function normalizeData(raw) {
     },
   ]
   data.reports = raw?.reports || []
+  data.localShiftArchive = raw?.localShiftArchive || []
   data.localIncidentArchive = raw?.localIncidentArchive || []
   data.reportSettings = raw?.reportSettings || {
     enabled: true,
@@ -151,6 +153,13 @@ export function StoreProvider({ children }) {
     data,
     setData,
   )
+  const { shiftsReady, shiftSyncError } = useCloudShifts(
+    authStatus.available,
+    user,
+    role?.permissions,
+    data,
+    setData,
+  )
   useEffect(() => {
     // El evento storage notifica inmediatamente a las otras pestañas del mismo origen.
     const receive = (event) => {
@@ -162,6 +171,7 @@ export function StoreProvider({ children }) {
             ? {
                 ...incoming,
                 incidents: current.incidents,
+                shifts: current.shifts,
                 users: current.users,
                 roles: current.roles,
               }
@@ -179,6 +189,7 @@ export function StoreProvider({ children }) {
           ? {
               ...data,
               incidents: data.incidents.filter((i) => !i.createdBy),
+              shifts: data.shifts.filter((s) => !s.shared),
               users: [],
               roles: [],
             }
@@ -213,7 +224,11 @@ export function StoreProvider({ children }) {
               ],
             }
       })
-    if (authStatus.loading || (authStatus.available && !incidentsReady)) return
+    if (
+      authStatus.loading ||
+      (authStatus.available && (!incidentsReady || !shiftsReady))
+    )
+      return
     generate()
     const timer = setInterval(generate, 30000)
     return () => clearInterval(timer)
@@ -222,6 +237,7 @@ export function StoreProvider({ children }) {
     authStatus.loading,
     authStatus.available,
     incidentsReady,
+    shiftsReady,
   ])
   const moduleFor = (col) =>
     ({
@@ -304,7 +320,8 @@ export function StoreProvider({ children }) {
       can,
       authStatus,
       incidentsReady,
-      storageError: incidentSyncError || storageError,
+      shiftsReady,
+      storageError: incidentSyncError || shiftSyncError || storageError,
       login,
       bootstrap,
       logout: async () => {
@@ -329,6 +346,17 @@ export function StoreProvider({ children }) {
         })),
       add: (col, item) => {
         if (!allowed(col, 'create')) return false
+        if (col === 'shifts' && authStatus.available)
+          return (async () => {
+            const { shifts } = await incidentRequest(
+              '/api/shifts',
+              'POST',
+              withIncidentNames(item, data),
+            )
+            setData((d) => ({ ...d, shifts: [...shifts, ...d.shifts] }))
+            return shifts[0].id
+          })()
+
         if (col === 'agents' && !authStatus.available && item.password)
           return (async () => {
             const { credentials } = await import('./access')
@@ -472,6 +500,22 @@ export function StoreProvider({ children }) {
           id: uid('s'),
           estado: 'Programado',
         }))
+        if (authStatus.available)
+          return (async () => {
+            try {
+              const { shifts } = await incidentRequest('/api/shifts', 'POST', {
+                shifts: records.map((s) => withIncidentNames(s, data)),
+              })
+              setData((d) => ({ ...d, shifts: [...shifts, ...d.shifts] }))
+              return {
+                created: shifts.length,
+                skipped: conflicts.length,
+                firstDate: shifts[0].fecha,
+              }
+            } catch (error) {
+              return { error: error.message }
+            }
+          })()
         setData((d) => ({ ...d, shifts: [...records, ...d.shifts] }))
         return {
           created: records.length,
@@ -481,6 +525,20 @@ export function StoreProvider({ children }) {
       },
       update: (col, id, patch) => {
         if (!allowed(col, 'update')) return false
+        if (col === 'shifts' && authStatus.available)
+          return (async () => {
+            const { shift } = await incidentRequest(
+              `/api/shifts/${encodeURIComponent(id)}`,
+              'PATCH',
+              withIncidentNames(patch, data),
+            )
+            setData((d) => ({
+              ...d,
+              shifts: d.shifts.map((s) => (s.id === id ? shift : s)),
+            }))
+            return true
+          })()
+
         if (
           authStatus.available &&
           ['incidents', 'users', 'roles'].includes(col)
@@ -544,6 +602,19 @@ export function StoreProvider({ children }) {
       },
       remove: (col, id) => {
         if (!allowed(col, 'delete')) return false
+        if (col === 'shifts' && authStatus.available)
+          return (async () => {
+            await incidentRequest(
+              `/api/shifts/${encodeURIComponent(id)}`,
+              'DELETE',
+            )
+            setData((d) => ({
+              ...d,
+              shifts: d.shifts.filter((s) => s.id !== id),
+            }))
+            return true
+          })()
+
         if (
           authStatus.available &&
           ['incidents', 'users', 'roles'].includes(col)
@@ -646,7 +717,9 @@ export function StoreProvider({ children }) {
               createdBy: user.id,
               agente: agent.id,
               cliente: agent.sitio,
-              fecha: reportDate(),
+              fecha: /^\d{4}-\d{2}-\d{2}$/.test(item.fecha)
+                ? item.fecha
+                : reportDate(),
               estado: 'Abierto',
             },
             ...d.incidents,
@@ -677,7 +750,9 @@ export function StoreProvider({ children }) {
               ...buildSeed(),
               users: data.users,
               roles: data.roles,
-              ...(authStatus.available ? { incidents: data.incidents } : {}),
+              ...(authStatus.available
+                ? { incidents: data.incidents, shifts: data.shifts }
+                : {}),
             }),
           )
       },
@@ -693,7 +768,9 @@ export function StoreProvider({ children }) {
               categories: data.categories,
               serviceTypes: data.serviceTypes,
               reports: [],
-              ...(authStatus.available ? { incidents: data.incidents } : {}),
+              ...(authStatus.available
+                ? { incidents: data.incidents, shifts: data.shifts }
+                : {}),
             }),
           )
       },
@@ -707,6 +784,7 @@ export function StoreProvider({ children }) {
                     users: data.users,
                     roles: data.roles,
                     incidents: data.incidents,
+                    shifts: data.shifts,
                   }
                 : obj,
             ),
@@ -722,6 +800,8 @@ export function StoreProvider({ children }) {
       storageError,
       incidentsReady,
       incidentSyncError,
+      shiftsReady,
+      shiftSyncError,
     ],
   )
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>

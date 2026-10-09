@@ -1,13 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useLocation, useParams } from 'react-router-dom'
 import { Link, useNavigate } from '../nav'
-import {
-  ArrowLeft,
-  ChevronRight,
-  Pencil,
-  Trash2,
-  MapPinOff,
-} from 'lucide-react'
+import { ArrowLeft, ChevronRight, Pencil, MapPinOff } from 'lucide-react'
 import { RESOURCES, detailPath, titleOf, money, ftime } from '../config'
 import { useStore } from '../store'
 import { Badge, Button, Card, Icon, Modal, Thumb } from '../components/ui'
@@ -599,15 +593,6 @@ export default function DetailPage({ resKey }) {
               <Pencil className="size-[18px]" />
             </button>
           )}
-          {can(resKey, 'delete') && (
-            <button
-              onClick={() => setDeleting(true)}
-              aria-label="Eliminar"
-              className="grid size-10 place-items-center rounded-lg border border-line bg-card text-red-500 cursor-pointer"
-            >
-              <Trash2 className="size-[18px]" />
-            </button>
-          )}
         </div>
       </div>
 
@@ -652,15 +637,6 @@ export default function DetailPage({ resKey }) {
                 className="flex-1 sm:flex-none"
               >
                 <Pencil className="size-4" /> Editar
-              </Button>
-            )}
-            {can(resKey, 'delete') && (
-              <Button
-                variant="ghost"
-                onClick={() => setDeleting(true)}
-                className="flex-1 !text-red-500 sm:flex-none"
-              >
-                <Trash2 className="size-4" /> Eliminar
               </Button>
             )}
           </div>

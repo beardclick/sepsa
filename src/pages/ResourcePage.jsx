@@ -350,7 +350,6 @@ export default function ResourcePage({ resKey }) {
               rows={pageRows}
               data={data}
               onEdit={can(resKey, 'update') ? setEditing : null}
-              onDelete={can(resKey, 'delete') ? setDeleting : null}
               sort={sort}
               onSort={toggleSort}
             />
@@ -380,6 +379,14 @@ export default function ResourcePage({ resKey }) {
           cfg={cfg}
           record={editing}
           data={data}
+          onDelete={
+            editing.id && can(resKey, 'delete')
+              ? (item) => {
+                  setEditing(null)
+                  setDeleting(item)
+                }
+              : undefined
+          }
           onSave={save}
           onClose={() => setEditing(null)}
         />

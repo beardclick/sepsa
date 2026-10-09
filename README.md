@@ -8,7 +8,7 @@ Publicación en Cloudflare y stack propuesto: [DEPLOY.md](DEPLOY.md). La configu
 
 La primera apertura solicita establecer una contraseña para el usuario `admin`. En Usuarios y permisos se pueden crear usuarios, asociarlos con agentes, desactivar accesos y administrar roles. Roles iniciales: Administradores, Jefes de seguridad, Supervisores y Agentes. Cada módulo tiene permisos de ver, crear, editar y eliminar. El rol Administradores conserva el control de usuarios para evitar perder acceso. Los catálogos que están en uso requieren reasignar sus registros antes de eliminarlos.
 
-El agente entra con su propio usuario y registra incidentes desde el Portal del agente. El sistema vincula cada incidente a su identidad y puesto, con fecha actual y estado Abierto.
+El agente entra con su propio usuario y registra incidentes desde Mis incidentes. El sistema vincula cada incidente a su identidad y puesto, con la fecha seleccionada y estado Abierto.
 
 ## Operación
 
@@ -23,12 +23,14 @@ El agente entra con su propio usuario y registra incidentes desde el Portal del 
 - Solo se mantiene abierto un submenú lateral a la vez, tanto en escritorio como en móvil.
 - Todas las secciones de registros relacionados permiten crear y editar en contexto según los permisos. Al abrir una ficha relacionada, los enlaces guardan el origen: guardar, cancelar la edición, eliminar o usar Volver regresa a la ficha anterior. Las fichas abiertas directamente siguen regresando a su listado.
 - Los incidentes se guardan en D1 y se comparten entre dispositivos. Los usuarios conectados con permiso de ver incidentes (administradores, jefes y supervisores) reciben un toast mediante WebSockets y Durable Objects; el creador queda excluido del aviso y ve la confirmación de envío. El toast dura ocho segundos y el aviso permanece en la campana durante la sesión. El historial inicial, las importaciones y las ediciones no generan avisos nuevos. La conexión se recupera automáticamente y se comprueba el historial cada veinte segundos como respaldo.
-- El portal consulta solo los incidentes del agente asociado. El servidor fija el reportante, el puesto, la fecha y el creador del incidente. La asociación mínima de nombre y puesto se comparte al crear o editar el usuario. Los incidentes reales creados localmente antes de esta actualización se importan al abrir el mismo navegador, según los permisos; se conserva una copia en localIncidentArchive y se excluyen los ejemplos de la plantilla.
+- El portal consulta solo los incidentes del agente asociado. El servidor fija el reportante, el puesto y el creador del incidente. La asociación mínima de nombre y puesto se comparte al crear o editar el usuario. Los incidentes reales creados localmente antes de esta actualización se importan al abrir el mismo navegador, según los permisos; se conserva una copia en localIncidentArchive y se excluyen los ejemplos de la plantilla.
 
 ## Persistencia y límites
 
 Las cuentas reales, contraseñas, sesiones y roles se guardan en Cloudflare D1. La contraseña se verifica en el servidor y el navegador recibe una cookie de sesión HttpOnly. La clave de configuración inicial solo permite crear el primer administrador y la cuenta queda cerrada después de ese registro. El administrador puede crear usuarios desde Usuarios y permisos.
 
-Los incidentes y sus evidencias comprimidas se guardan en D1. Clientes, fichas completas de agentes, contratos, turnos, equipos e informes permanecen en localStorage bajo la clave existente. Los PDF se guardan en IndexedDB y se incluyen en los respaldos JSON de Ajustes. Esas colecciones todavía no se comparten entre dispositivos.
+Los incidentes y sus evidencias comprimidas se guardan en D1. Clientes, fichas completas de agentes, contratos, equipos e informes permanecen en localStorage bajo la clave existente. Los PDF se guardan en IndexedDB y se incluyen en los respaldos JSON de Ajustes. Esas colecciones todavía no se comparten entre dispositivos.
 
-La API valida en servidor los permisos de usuarios, roles e incidentes. Los permisos de las otras colecciones operativas aún se aplican en la interfaz local. La generación de informes con la aplicación cerrada sigue pendiente. Los informes anteriores conservan la captura guardada: no reconstruyen datos históricos de inventario o personal.
+La API valida en servidor los permisos de usuarios, roles, turnos e incidentes. Los permisos de las otras colecciones operativas aún se aplican en la interfaz local. La generación de informes con la aplicación cerrada sigue pendiente. Los informes anteriores conservan la captura guardada: no reconstruyen datos históricos de inventario o personal.
+
+Los turnos se guardan en D1 y se consultan cada quince segundos. El agente recibe solo sus propios turnos y ve junto al saludo el tiempo restante con segundos, calculado en la zona de Panamá, incluidos los turnos nocturnos. Los turnos reales locales se importan una sola vez desde el navegador administrativo y se respaldan en localShiftArchive. Los estados de sus incidentes se actualizan automáticamente cada veinte segundos. La eliminación se abre desde los formularios de edición; Usuarios y permisos muestra cuentas y roles administrativos, y los accesos de agentes se gestionan en sus fichas.

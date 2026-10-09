@@ -102,6 +102,27 @@ export default function ReportsPage() {
               </>
             ) : (
               <>
+                {can('reports', 'delete') &&
+                  data.reports.some((r) => r.fecha === fecha) && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `¿Eliminar el informe del ${fdate(fecha)}?`,
+                          )
+                        ) {
+                          remove(
+                            'reports',
+                            data.reports.find((r) => r.fecha === fecha).id,
+                          )
+                          closeCreator()
+                        }
+                      }}
+                    >
+                      Eliminar
+                    </Button>
+                  )}
                 <Button variant="ghost" onClick={closeCreator}>
                   Cancelar
                 </Button>
@@ -237,21 +258,6 @@ export default function ReportsPage() {
                 {can('reports', 'update') && (
                   <Button variant="ghost" onClick={() => openCreator(r)}>
                     Actualizar
-                  </Button>
-                )}
-                {can('reports', 'delete') && (
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          `¿Eliminar el informe del ${fdate(r.fecha)}?`,
-                        )
-                      )
-                        remove('reports', r.id)
-                    }}
-                  >
-                    Eliminar
                   </Button>
                 )}
               </div>

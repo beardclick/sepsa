@@ -93,18 +93,23 @@ export default function CalendarPage() {
   })
   const selTitle = cap(selLabel)
 
-  const save = (vals) => {
-    if (editing.id) update('shifts', editing.id, vals)
-    else add('shifts', vals)
+  const save = async (vals) => {
+    if (editing.id) await update('shifts', editing.id, vals)
+    else await add('shifts', vals)
     setSelected(vals.fecha)
     setEditing(null)
   }
 
-  const onDrop = (e, key) => {
+  const onDrop = async (e, key) => {
     e.preventDefault()
     const id = e.dataTransfer.getData('text/plain')
-    if (id && can('shifts', 'update')) update('shifts', id, { fecha: key })
-    setSelected(key)
+    try {
+      if (id && can('shifts', 'update'))
+        await update('shifts', id, { fecha: key })
+      setSelected(key)
+    } catch (error) {
+      setPlanMessage(error.message)
+    }
   }
 
   return (
@@ -369,9 +374,14 @@ export default function CalendarPage() {
               </Button>
               <Button
                 variant="danger"
-                onClick={() => {
-                  remove('shifts', deleting.id)
-                  setDeleting(null)
+                onClick={async () => {
+                  try {
+                    await remove('shifts', deleting.id)
+                    setDeleting(null)
+                  } catch (error) {
+                    setPlanMessage(error.message)
+                    setDeleting(null)
+                  }
                 }}
               >
                 Eliminar
