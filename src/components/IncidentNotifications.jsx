@@ -1,9 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { Bell, ShieldAlert, X } from 'lucide-react'
 import { useStore } from '../store'
 import { Link } from '../nav'
 import { Badge } from './ui'
+
+const noticeTime = (value) =>
+  new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Panama',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  }).format(new Date(value))
 
 function IncidentToast({ notice, onDismiss }) {
   useEffect(() => {
@@ -19,6 +28,9 @@ function IncidentToast({ notice, onDismiss }) {
         <ShieldAlert className="mt-1 size-5 shrink-0 text-accent" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-bold">Nuevo incidente</p>
+          <time dateTime={notice.createdAt} className="text-xs text-muted">
+            {noticeTime(notice.createdAt)}
+          </time>
           <p className="mt-1 break-words text-sm">{notice.titulo}</p>
           {notice.site && (
             <p className="mt-1 text-xs text-muted">{notice.site}</p>
@@ -46,7 +58,10 @@ function IncidentToast({ notice, onDismiss }) {
   )
 }
 
-export default function IncidentNotifications() {
+export default function IncidentNotifications({ onUnseenChange } = {}) {
+  const { pathname } = useLocation()
+  const viewingIncidents =
+    pathname === '/incidentes' || pathname.startsWith('/incidentes/')
   const { data, user, can, incidentsReady = true } = useStore()
   const previous = useRef({
     userId: user?.id,
@@ -87,16 +102,32 @@ export default function IncidentNotifications() {
         i.clienteNombre || data.clients.find((c) => c.id === i.cliente)?.nombre,
       to: can('incidents') ? `/incidentes/${i.id}` : '/portal-agente',
       unread: true,
+      unseen: !viewingIncidents,
+      createdAt: i.createdAt || new Date().toISOString(),
     }))
     setNotices((current) => [...fresh, ...current].slice(0, 30))
     setToastIds((current) =>
       [...fresh.map((i) => i.id), ...current].slice(0, 3),
     )
-  }, [data.incidents, user?.id, user?.agent, visible, can, incidentsReady])
+  }, [
+    data.incidents, user?.id, user?.agent, visible, can, incidentsReady, viewingIncidents,
+  ])
   // Al cambiar de permisos, se retiran los avisos que ya no puede ver el usuario.
   const allowedNotices = notices.filter((n) =>
     data.incidents.some((i) => i.id === n.id && visible),
   )
+  const unseen = allowedNotices.filter((n) => n.unseen).length
+  useEffect(() => {
+    onUnseenChange?.(unseen)
+  }, [unseen, onUnseenChange])
+  useEffect(() => {
+    if (viewingIncidents)
+      setNotices((current) =>
+        current.some((n) => n.unseen)
+          ? current.map((n) => ({ ...n, unseen: false }))
+          : current,
+      )
+  }, [viewingIncidents, data.incidents])
   const unread = allowedNotices.filter((n) => n.unread).length
   const stableDismiss = useCallback((id) => {
     setToastIds((ids) => ids.filter((x) => x !== id))
@@ -156,6 +187,9 @@ export default function IncidentNotifications() {
                   <p className="text-xs font-semibold text-accent">
                     Nuevo incidente
                   </p>
+                  <time dateTime={n.createdAt} className="text-xs text-muted">
+                    {noticeTime(n.createdAt)}
+                  </time>
                   <p className="mt-1 break-words text-sm font-semibold">
                     {n.titulo}
                   </p>

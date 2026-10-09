@@ -39,7 +39,12 @@ function Brand() {
   )
 }
 
-function NavList({ onNavigate, expandedMenu, setExpandedMenu }) {
+function NavList({
+  onNavigate,
+  expandedMenu,
+  setExpandedMenu,
+  unseenIncidents,
+}) {
   const { can, user } = useStore()
   const available = NAV.filter(
     (n) =>
@@ -82,11 +87,19 @@ function NavList({ onNavigate, expandedMenu, setExpandedMenu }) {
                         onNavigate?.()
                       }}
                       className={({ isActive }) =>
-                        `flex flex-1 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium ${isActive ? 'bg-accent text-accent-fg' : 'text-muted hover:bg-soft hover:text-fg'}`
+                        `flex flex-1 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium ${n.to === '/incidentes' && unseenIncidents > 0 ? 'bg-red-600 text-white shadow-[0_0_12px_rgba(239,68,68,0.3)] hover:bg-red-500' : isActive ? 'bg-accent text-accent-fg' : 'text-muted hover:bg-soft hover:text-fg'}`
                       }
                     >
                       <Icon name={n.icon} className="size-[18px]" />
                       {n.label}
+                      {n.to === '/incidentes' && unseenIncidents > 0 && (
+                        <span
+                          aria-label={`${unseenIncidents} incidentes sin revisar`}
+                          className="ml-auto rounded-full bg-white/20 px-1.5 text-xs font-bold"
+                        >
+                          {unseenIncidents}
+                        </span>
+                      )}
                     </NavLink>
                     {child && (
                       <button
@@ -151,6 +164,7 @@ function AccountIdentity({ user, role }) {
 
 export default function Layout() {
   const { user, role, logout, storageError } = useStore()
+  const [unseenIncidents, setUnseenIncidents] = useState(0)
   const [open, setOpen] = useState(false)
   const [dark, setDark] = useTheme()
   const { pathname } = useLocation()
@@ -180,6 +194,7 @@ export default function Layout() {
         <Brand />
         <div className="-mx-1 flex-1 overflow-y-auto px-1">
           <NavList
+            unseenIncidents={unseenIncidents}
             expandedMenu={expandedMenu}
             setExpandedMenu={setExpandedMenu}
           />
@@ -207,6 +222,7 @@ export default function Layout() {
             </div>
             <div className="flex-1 overflow-y-auto">
               <NavList
+                unseenIncidents={unseenIncidents}
                 expandedMenu={expandedMenu}
                 setExpandedMenu={setExpandedMenu}
                 onNavigate={() => setOpen(false)}
@@ -242,7 +258,7 @@ export default function Layout() {
             <span className="size-2 animate-pulse rounded-full bg-emerald-500" />{' '}
             Sistema operativo
           </span>
-          <IncidentNotifications />
+          <IncidentNotifications onUnseenChange={setUnseenIncidents} />
           <button
             onClick={() => setDark(!dark)}
             aria-label="Cambiar tema"

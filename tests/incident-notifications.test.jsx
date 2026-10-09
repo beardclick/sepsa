@@ -1,8 +1,9 @@
 import React from 'react'
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import IncidentNotifications from '../src/components/IncidentNotifications'
+import Layout from '../src/components/Layout'
 
 let model
 vi.mock('../src/store', () => ({ useStore: () => model }))
@@ -40,6 +41,37 @@ describe('Avisos entre usuarios', () => {
     }
     view.rerender(component())
     expect(screen.getAllByRole('status')).toHaveLength(1)
+  })
+  it('mantiene el menú rojo al abrir la campana y lo limpia al visitar incidentes', () => {
+    receiver()
+    const panel = () => (
+      <MemoryRouter>
+        <Layout />
+      </MemoryRouter>
+    )
+    const view = render(panel())
+    model.data = {
+      ...model.data,
+      incidents: [
+        incident('pendiente', 'agente', { createdAt: '2026-10-09T18:25:00Z' }),
+      ],
+    }
+    view.rerender(panel())
+    const menu = screen.getByRole('link', { name: /Incidentes/ })
+    expect(menu.className).toContain('bg-red-600')
+    expect(menu.className).toContain('shadow-')
+    expect(screen.getByRole('status').textContent).toContain('01:25 PM')
+    fireEvent.click(screen.getByRole('button', { name: /Notificaciones:/ }))
+    expect(menu.className).toContain('bg-red-600')
+    expect(screen.getAllByText('01:25 PM')).toHaveLength(2)
+    fireEvent.click(menu)
+    expect(menu.className).not.toContain('bg-red-600')
+    model.data = {
+      ...model.data,
+      incidents: [incident('otro', 'agente'), ...model.data.incidents],
+    }
+    view.rerender(panel())
+    expect(menu.className).not.toContain('bg-red-600')
   })
   it('no muestra al creador el toast ni lo marca como aviso sin leer', () => {
     receiver()
