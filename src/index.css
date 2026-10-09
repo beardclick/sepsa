@@ -1,0 +1,97 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Paleta tomada de seguridadespecializada.com */
+:root {
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --soft: #f1f5f9;
+  --line: #e2e8f0;
+  --fg: #0f172a;
+  --muted: #475569;
+  --accent: #991b1b;
+  --accent-fg: #ffffff;
+  --accent-soft: rgba(153, 27, 27, 0.08);
+  --c1: #991b1b;
+  --c2: #dc2626;
+  --c3: #475569;
+  --c4: #cbd5e1;
+}
+.dark {
+  --bg: #0b0d13;
+  --card: #121622;
+  --soft: #181e2e;
+  --line: #262f44;
+  --fg: #f1f5f9;
+  --muted: #94a3b8;
+  --accent: #dc2626;
+  --accent-fg: #ffffff;
+  --accent-soft: rgba(220, 38, 38, 0.16);
+  --c1: #dc2626;
+  --c2: #991b1b;
+  --c3: #64748b;
+  --c4: #334155;
+}
+
+@theme inline {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Montserrat", "Plus Jakarta Sans", sans-serif;
+  --color-bg: var(--bg);
+  --color-card: var(--card);
+  --color-soft: var(--soft);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+}
+
+html, body, #root { min-height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+.dark body {
+  background-image: radial-gradient(900px 400px at 85% -10%, rgba(185, 28, 28, 0.14), transparent 60%);
+  background-attachment: fixed;
+}
+h1, h2, h3, .font-display { font-family: var(--font-display); }
+
+/* Mapa (Leaflet) — en modo oscuro se invierten los mosaicos de OpenStreetMap */
+.dark .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.85) contrast(.9) saturate(.7); }
+.leaflet-container { background: var(--soft); font-family: var(--font-sans); }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--card); color: var(--fg); box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+.leaflet-popup-content { overflow-wrap: anywhere; }
+.leaflet-container a.leaflet-popup-close-button { color: var(--muted); }
+.leaflet-control-zoom a { background: var(--card) !important; color: var(--fg) !important; border-color: var(--line) !important; }
+.leaflet-control-attribution { background: color-mix(in srgb, var(--card) 80%, transparent) !important; color: var(--muted) !important; }
+.leaflet-control-attribution a { color: var(--muted) !important; }
+.pin { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 9999px; background: var(--accent); color: #fff; font: 700 12px var(--font-display); border: 3px solid #fff; box-shadow: 0 4px 14px rgba(0,0,0,.45); position: relative; }
+.pin::after { content: ""; position: absolute; inset: -8px; border-radius: 9999px; border: 2px solid var(--accent); opacity: .5; animation: ping 2s ease-out infinite; }
+.pin.sel { transform: scale(1.2); z-index: 1000 !important; }
+.pin-site { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--card); color: var(--accent); border: 2px solid var(--accent); box-shadow: 0 3px 10px rgba(0,0,0,.35); }
+@keyframes ping { 0% { transform: scale(.8); opacity: .6; } 100% { transform: scale(1.5); opacity: 0; } }
+* { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+
+.input {
+  width: 100%;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  color: var(--fg);
+  border-radius: 0.65rem;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.input::placeholder { color: var(--muted); }
+select.input option { background: var(--card); color: var(--fg); }
+
+@keyframes pop { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+.anim-pop { animation: pop .2s ease-out; }
+.anim-fade { animation: fade .2s ease-out; }
