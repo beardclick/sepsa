@@ -96,10 +96,12 @@ export function useCloudShifts(enabled, user, permissions, data, setData) {
     initialize()
     const timer = setInterval(refresh, 15000)
     window.addEventListener('focus', refresh)
+    window.addEventListener('sepsa:refresh', refresh)
     return () => {
       disposed = true
       clearInterval(timer)
       window.removeEventListener('focus', refresh)
+      window.removeEventListener('sepsa:refresh', refresh)
     }
   }, [enabled, user?.id, user?.role, view, create, setData])
   return { shiftsReady: enabled ? ready : true, shiftSyncError: error }

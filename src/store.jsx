@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { buildSeed } from './seed'
 import { useCloudShifts } from './cloudShifts'
 import { SERVICES } from './config'
@@ -80,8 +88,18 @@ export function StoreProvider({ children }) {
     error: '',
   })
   const [storageError, setStorageError] = useState('')
+  const [sessionError, setSessionError] = useState('')
+  const sessionVersion = useRef(0)
+  const isMounted = useRef(true)
+  const refreshInFlight = useRef(null)
+  const refreshAgain = useRef(false)
+  const sessionUser = useRef(null)
+  sessionUser.current = cloudUser
   useEffect(() => {
     let active = true
+    isMounted.current = true
+    const version = ++sessionVersion.current
+    const valid = () => active && version === sessionVersion.current
     const initialize = async () => {
       try {
         const stateResponse = await fetch('/api/auth/state', {
@@ -90,9 +108,9 @@ export function StoreProvider({ children }) {
         if (!stateResponse.ok)
           throw new Error('No se pudo contactar el servicio de acceso.')
         const state = await stateResponse.json()
-        if (!active) return
+        if (!valid()) return
         setAuthStatus({
-          loading: false,
+          loading: true,
           available: true,
           initialized: !!state.initialized,
           adminEmail: state.adminEmail || '',
@@ -106,12 +124,16 @@ export function StoreProvider({ children }) {
         if (meResponse.status === 401) return
         if (!meResponse.ok) throw new Error('No se pudo validar la sesión.')
         const me = await meResponse.json()
-        if (!active) return
+        if (!valid()) return
         setCloudUser(me.user)
         setCloudRole(me.role)
-        await loadCloudAdmin(me.user, me.role, active, setData)
+        try {
+          await loadCloudAdmin(me.user, me.role, valid, setData)
+        } catch (error) {
+          if (valid()) setSessionError(error.message)
+        }
       } catch (error) {
-        if (!active) return
+        if (!valid()) return
         if (import.meta.env.DEV) {
           setAuthStatus({
             loading: false,
@@ -129,13 +151,92 @@ export function StoreProvider({ children }) {
             error: error.message,
           })
         }
+      } finally {
+        if (valid()) setAuthStatus((status) => ({ ...status, loading: false }))
       }
     }
     initialize()
     return () => {
       active = false
+      isMounted.current = false
+      sessionVersion.current++
     }
   }, [])
+  const refreshSession = useCallback(() => {
+    if (!isMounted.current || !authStatus.available || !sessionUser.current)
+      return Promise.resolve()
+    if (refreshInFlight.current) {
+      refreshAgain.current = true
+      return refreshInFlight.current
+    }
+    const version = sessionVersion.current
+    const valid = () => isMounted.current && version === sessionVersion.current
+    const task = (async () => {
+      try {
+        const response = await fetch('/api/auth/me', {
+          credentials: 'same-origin',
+          cache: 'no-store',
+        })
+        if (!valid()) return
+        if (response.status === 401) {
+          sessionVersion.current++
+          setCloudUser(null)
+          setCloudRole(null)
+          setSession(null)
+          sessionStorage.removeItem('sepsa-session')
+          setSessionError('')
+          setData((d) => ({
+            ...d,
+            users: [],
+            roles: [],
+            incidents: [],
+            shifts: [],
+          }))
+          return
+        }
+        if (!response.ok)
+          throw new Error(
+            'No se pudo actualizar la sesión. Se intentará nuevamente.',
+          )
+        const me = await response.json()
+        if (!valid()) return
+        setCloudUser(me.user)
+        setCloudRole(me.role)
+        setSessionError('')
+        try {
+          await loadCloudAdmin(me.user, me.role, valid, setData)
+        } finally {
+          if (valid()) window.dispatchEvent(new Event('sepsa:refresh'))
+        }
+      } catch (error) {
+        if (valid())
+          setSessionError(error.message || 'No se pudo actualizar la sesión.')
+      }
+    })()
+    refreshInFlight.current = task
+    task.finally(() => {
+      if (refreshInFlight.current === task) {
+        refreshInFlight.current = null
+        const again = refreshAgain.current
+        refreshAgain.current = false
+        if (again && sessionUser.current) refreshSession()
+      }
+    })
+    return task
+  }, [authStatus.available])
+  useEffect(() => {
+    const focus = () => {
+      refreshSession()
+    }
+    const timer = setInterval(() => {
+      if (document.visibilityState !== 'hidden') refreshSession()
+    }, 30000)
+    window.addEventListener('focus', focus)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('focus', focus)
+    }
+  }, [refreshSession])
   const localUser =
     import.meta.env.DEV && !authStatus.available
       ? data.users.find((u) => u.id === session && u.activo)
@@ -249,6 +350,7 @@ export function StoreProvider({ children }) {
     })[col] || col
   const allowed = (col, action) => can(moduleFor(col), action)
   const login = async (username, password) => {
+    sessionVersion.current++
     if (!authStatus.available) {
       if (!import.meta.env.DEV)
         throw new Error(
@@ -289,6 +391,7 @@ export function StoreProvider({ children }) {
     await loadCloudAdmin(payload.user, payload.role, true, setData)
   }
   const bootstrap = async (input) => {
+    sessionVersion.current++
     if (!authStatus.available)
       throw new Error(
         authStatus.error || 'El servicio de acceso no está disponible.',
@@ -308,10 +411,6 @@ export function StoreProvider({ children }) {
     setData((d) => ({ ...d, users: [payload.user], roles: [payload.role] }))
     await loadCloudAdmin(payload.user, payload.role, true, setData)
   }
-  const refreshAdmin = async () => {
-    if (!authStatus.available || !user) return
-    await loadCloudAdmin(user, role, true, setData)
-  }
   const api = useMemo(
     () => ({
       data,
@@ -321,10 +420,19 @@ export function StoreProvider({ children }) {
       authStatus,
       incidentsReady,
       shiftsReady,
-      storageError: incidentSyncError || shiftSyncError || storageError,
+      refreshSession,
+      storageError:
+        sessionError || incidentSyncError || shiftSyncError || storageError,
       login,
       bootstrap,
       logout: async () => {
+        sessionVersion.current++
+        sessionUser.current = null
+        sessionStorage.removeItem('sepsa-session')
+        setSession(null)
+        setCloudUser(null)
+        setCloudRole(null)
+        setSessionError('')
         if (authStatus.available)
           await fetch('/api/auth/logout', {
             method: 'POST',
@@ -332,10 +440,6 @@ export function StoreProvider({ children }) {
             headers: { 'content-type': 'application/json' },
             body: '{}',
           }).catch(() => {})
-        sessionStorage.removeItem('sepsa-session')
-        setSession(null)
-        setCloudUser(null)
-        setCloudRole(null)
       },
       setup: (patch) =>
         setData((d) => ({
@@ -587,8 +691,14 @@ export function StoreProvider({ children }) {
                 ...d,
                 [col]: d[col].map((row) => (row.id === id ? saved : row)),
               }))
-              if (col === 'users' && user?.id === id) setCloudUser(saved)
-              if (col === 'roles' && user?.role === id) setCloudRole(saved)
+              if (col === 'users' && user?.id === id) {
+                sessionVersion.current++
+                setCloudUser(saved)
+              }
+              if (col === 'roles' && user?.role === id) {
+                sessionVersion.current++
+                setCloudRole(saved)
+              }
               return true
             }
           })()
@@ -802,14 +912,17 @@ export function StoreProvider({ children }) {
       incidentSyncError,
       shiftsReady,
       shiftSyncError,
+      sessionError,
+      refreshSession,
     ],
   )
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>
 }
 
 async function loadCloudAdmin(user, role, active, setData) {
+  const valid = () => (typeof active === 'function' ? active() : active)
   if (!role?.permissions?.users?.includes('view')) {
-    setData((d) => ({ ...d, users: [user], roles: [role] }))
+    if (valid()) setData((d) => ({ ...d, users: [user], roles: [role] }))
     return
   }
   const [usersResponse, rolesResponse] = await Promise.all([
@@ -828,6 +941,6 @@ async function loadCloudAdmin(user, role, active, setData) {
     usersResponse.json(),
     rolesResponse.json(),
   ])
-  if (active) setData((d) => ({ ...d, users, roles }))
+  if (valid()) setData((d) => ({ ...d, users, roles }))
 }
 export const useStore = () => useContext(Ctx)

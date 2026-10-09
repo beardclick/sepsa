@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import {
   HashRouter,
   Navigate,
@@ -22,8 +23,38 @@ import DetailPage from './pages/DetailPage'
 import SettingsPage from './pages/SettingsPage'
 
 function AccessGate({ children }) {
-  const { user, role, can, logout } = useStore()
+  const { user, role, can, logout, authStatus, refreshSession } = useStore()
   const { pathname } = useLocation()
+  const previousPath = useRef(pathname)
+  useEffect(() => {
+    if (previousPath.current !== pathname) {
+      previousPath.current = pathname
+      refreshSession()
+    }
+  }, [pathname, refreshSession])
+  if (authStatus.loading)
+    return (
+      <div
+        role="status"
+        className="grid min-h-screen place-items-center bg-bg text-sm text-muted"
+      >
+        Cargando tu sesión…
+      </div>
+    )
+  if (!user && authStatus.error)
+    return (
+      <div className="grid min-h-screen place-items-center bg-bg p-6">
+        <div className="text-center">
+          <p role="alert">{authStatus.error}</p>
+          <button
+            className="mt-4 underline"
+            onClick={() => window.location.reload()}
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    )
   if (!user) return <LoginPage />
   const module = moduleForPath(pathname)
   if (module && !can(module)) {

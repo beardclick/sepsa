@@ -455,9 +455,9 @@ describe('Rutas y navegación', () => {
         .getAttribute('aria-expanded'),
     ).toBe('true')
   })
-  it('abre solamente un submenú a la vez y permite cerrarlo', () => {
+  it('abre solamente un submenú a la vez y permite cerrarlo', async () => {
     openApp('/equipos/categorias', 'admin')
-    const equipment = screen.getByRole('button', {
+    const equipment = await screen.findByRole('button', {
       name: 'Submenú de Equipos',
     })
     const contracts = screen.getByRole('button', {

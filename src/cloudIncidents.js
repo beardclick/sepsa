@@ -204,12 +204,14 @@ export function useCloudIncidents(enabled, user, permissions, data, setData) {
     const fallback = setInterval(refresh, 20000)
     const focus = () => refresh()
     window.addEventListener('focus', focus)
+    window.addEventListener('sepsa:refresh', focus)
     return () => {
       disposed = true
       clearInterval(fallback)
       clearTimeout(retryTimer)
       socket?.close()
       window.removeEventListener('focus', focus)
+      window.removeEventListener('sepsa:refresh', focus)
     }
   }, [
     enabled,
