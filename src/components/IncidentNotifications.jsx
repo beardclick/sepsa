@@ -47,19 +47,24 @@ function IncidentToast({ notice, onDismiss }) {
 }
 
 export default function IncidentNotifications() {
-  const { data, user, can } = useStore()
+  const { data, user, can, incidentsReady = true } = useStore()
   const previous = useRef({
     userId: user?.id,
     ids: new Set(data.incidents.map((i) => i.id)),
+    ready: incidentsReady,
   })
   const [notices, setNotices] = useState([]),
     [toastIds, setToastIds] = useState([]),
     [open, setOpen] = useState(false)
-  const visible = can('incidents') || can('portal')
+  const visible = can('incidents') && user?.role !== 'agent'
   useEffect(() => {
     const ids = new Set(data.incidents.map((i) => i.id))
-    if (previous.current.userId !== user?.id) {
-      previous.current = { userId: user?.id, ids }
+    if (
+      previous.current.userId !== user?.id ||
+      !incidentsReady ||
+      !previous.current.ready
+    ) {
+      previous.current = { userId: user?.id, ids, ready: incidentsReady }
       setNotices([])
       setToastIds([])
       setOpen(false)
@@ -68,7 +73,9 @@ export default function IncidentNotifications() {
     const added = data.incidents.filter(
       (i) =>
         !previous.current.ids.has(i.id) &&
-        (can('incidents') || (can('portal') && i.agente === user?.agent)),
+        visible &&
+        i.createdBy !== user?.id &&
+        !i.imported,
     )
     previous.current.ids = ids
     if (!added.length) return
@@ -76,7 +83,8 @@ export default function IncidentNotifications() {
       id: i.id,
       titulo: i.titulo,
       severidad: i.severidad,
-      site: data.clients.find((c) => c.id === i.cliente)?.nombre,
+      site:
+        i.clienteNombre || data.clients.find((c) => c.id === i.cliente)?.nombre,
       to: can('incidents') ? `/incidentes/${i.id}` : '/portal-agente',
       unread: true,
     }))
@@ -84,14 +92,10 @@ export default function IncidentNotifications() {
     setToastIds((current) =>
       [...fresh.map((i) => i.id), ...current].slice(0, 3),
     )
-  }, [data.incidents, user?.id, user?.agent, visible, can])
+  }, [data.incidents, user?.id, user?.agent, visible, can, incidentsReady])
   // Al cambiar de permisos, se retiran los avisos que ya no puede ver el usuario.
   const allowedNotices = notices.filter((n) =>
-    data.incidents.some(
-      (i) =>
-        i.id === n.id &&
-        (can('incidents') || (can('portal') && i.agente === user?.agent)),
-    ),
+    data.incidents.some((i) => i.id === n.id && visible),
   )
   const unread = allowedNotices.filter((n) => n.unread).length
   const stableDismiss = useCallback((id) => {

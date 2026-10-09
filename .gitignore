@@ -8,3 +8,5 @@ dist/
 .wrangler/
 .claude/
 *.log
+.dev.vars
+.dev.vars.*

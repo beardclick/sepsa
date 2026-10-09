@@ -21,9 +21,10 @@ export default function RecordForm({
   lockedFields = [],
 }) {
   const editing = !!record?.id
+  const fields = cfg.fields.filter((f) => !editing || !f.createOnly)
   const [values, setValues] = useState(() => {
     const init = {}
-    cfg.fields.forEach((f) => {
+    fields.forEach((f) => {
       init[f.key] =
         record?.[f.key] ??
         (f.type === 'pdf'
@@ -50,6 +51,7 @@ export default function RecordForm({
   })
   const [errors, setErrors] = useState({})
   const [uploading, setUploading] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [geoMsg, setGeoMsg] = useState('')
   const set = (k, v) => setValues((s) => ({ ...s, [k]: v }))
   const hasCoords =
@@ -73,23 +75,39 @@ export default function RecordForm({
     )
   }
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault()
     const errs = {}
-    cfg.fields.forEach((f) => {
+    fields.forEach((f) => {
       if (f.required && !String(values[f.key]).trim())
         errs[f.key] = 'Campo obligatorio'
     })
+    if (cfg.collection === 'agents' && !editing) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email || ''))
+        errs.email = 'Indica un correo válido'
+      if ((values.password || '').length < 12)
+        errs.password = 'Usa al menos 12 caracteres'
+    }
     setErrors(errs)
     if (Object.keys(errs).length) return
     const out = { ...values }
-    cfg.fields.forEach((f) => {
+    fields.forEach((f) => {
       if (f.type === 'number' || f.type === 'money')
         out[f.key] = Number(out[f.key]) || 0
       if (f.type === 'coord')
         out[f.key] = out[f.key] === '' ? '' : Number(out[f.key])
     })
-    onSave(out)
+    setSaving(true)
+    try {
+      await onSave(out)
+    } catch (error) {
+      setErrors((current) => ({
+        ...current,
+        server: error.message || 'No se pudo guardar.',
+      }))
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -116,8 +134,16 @@ export default function RecordForm({
           <Button variant="ghost" type="button" onClick={onClose}>
             Cancelar
           </Button>
-          <Button disabled={uploading} type="submit" form="record-form">
-            {editing ? 'Guardar cambios' : `Crear ${cfg.singular}`}
+          <Button
+            disabled={uploading || saving}
+            type="submit"
+            form="record-form"
+          >
+            {saving
+              ? 'Guardando…'
+              : editing
+                ? 'Guardar cambios'
+                : `Crear ${cfg.singular}`}
           </Button>
         </>
       }
@@ -128,7 +154,7 @@ export default function RecordForm({
         className="grid gap-4 sm:grid-cols-2"
         noValidate
       >
-        {cfg.fields.map((f) => {
+        {fields.map((f) => {
           const common = {
             disabled: lockedFields.includes(f.key),
             id: `f-${f.key}`,
@@ -321,6 +347,11 @@ export default function RecordForm({
             </div>
           )
         })}
+        {errors.server && (
+          <p role="alert" className="sm:col-span-2 text-sm text-red-500">
+            {errors.server}
+          </p>
+        )}
         {geoMsg && (
           <p role="alert" className="sm:col-span-2 text-sm text-red-500">
             {geoMsg}

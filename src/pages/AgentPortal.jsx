@@ -5,10 +5,13 @@ import { reportDate } from '../reports'
 import { Card, Button, Badge } from '../components/ui'
 import RecordForm from '../components/RecordForm'
 export default function AgentPortal() {
-  const { data, user, can, submitIncident } = useStore()
+  const { data, user, can, submitIncident, incidentsReady, authStatus } =
+    useStore()
   const agent = data.agents.find((a) => a.id === user.agent)
   const [open, setOpen] = useState(false),
     [message, setMessage] = useState('')
+  if (!agent && authStatus.available && !incidentsReady)
+    return <Card className="p-6">Cargando tu ficha de agente…</Card>
   if (!agent)
     return (
       <Card className="p-6">
@@ -81,11 +84,11 @@ export default function AgentPortal() {
           cfg={cfg}
           data={data}
           onClose={() => setOpen(false)}
-          onSave={(item) => {
-            if (submitIncident(item)) {
+          onSave={async (item) => {
+            if (await submitIncident(item)) {
               setOpen(false)
               setMessage('Incidente registrado correctamente.')
-            } else setMessage('No se pudo registrar el incidente.')
+            } else throw new Error('No se pudo registrar el incidente.')
           }}
         />
       )}

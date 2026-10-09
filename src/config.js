@@ -103,8 +103,20 @@ export const RESOURCES = {
       { key: 'licencia', label: 'Vence licencia', type: 'date', col: true },
       { key: 'ingreso', label: 'Fecha de ingreso', type: 'date' },
       { key: 'emergencia', label: 'Contacto de emergencia' },
-      { key: 'lat', label: 'Latitud (última posición)', type: 'coord' },
-      { key: 'lng', label: 'Longitud (última posición)', type: 'coord' },
+      {
+        key: 'email',
+        label: 'Correo de acceso',
+        type: 'email',
+        required: true,
+        createOnly: true,
+      },
+      {
+        key: 'password',
+        label: 'Contraseña inicial (mínimo 12 caracteres)',
+        type: 'password',
+        required: true,
+        createOnly: true,
+      },
       {
         key: 'estado',
         label: 'Estado',
@@ -404,7 +416,7 @@ export const NAV = [
   },
   {
     to: '/portal-agente',
-    label: 'Portal del agente',
+    label: 'Mis incidentes',
     icon: 'ShieldAlert',
     section: 'Operaciones',
   },

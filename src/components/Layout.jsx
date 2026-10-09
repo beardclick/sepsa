@@ -40,8 +40,12 @@ function Brand() {
 }
 
 function NavList({ onNavigate, expandedMenu, setExpandedMenu }) {
-  const { can } = useStore()
-  const available = NAV.filter((n) => can(moduleForPath(n.to)))
+  const { can, user } = useStore()
+  const available = NAV.filter(
+    (n) =>
+      can(moduleForPath(n.to)) &&
+      (n.to !== '/portal-agente' || user?.role === 'agent'),
+  )
   return (
     <nav className="flex flex-col gap-5">
       {NAV_SECTIONS.filter((sec) =>

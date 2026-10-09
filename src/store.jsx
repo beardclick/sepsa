@@ -4,6 +4,12 @@ import { SERVICES } from './config'
 import { initialRoles } from './access'
 import { makeReport, reportDate } from './reports'
 import { analyzeShiftPlan } from './schedule'
+import {
+  incidentRequest,
+  syncAgentProfile,
+  useCloudIncidents,
+  withIncidentNames,
+} from './cloudIncidents'
 const KEY = 'sepsa-crm-data-v3'
 const Ctx = createContext(null)
 export function normalizeData(raw) {
@@ -29,6 +35,7 @@ export function normalizeData(raw) {
       e.categoria ||
       (e.tipo === 'Radio' ? 'cat0' : e.tipo === 'Vehículo' ? 'cat3' : 'cat1'),
   }))
+  data.agents = data.agents.map(({ lat, lng, password, ...agent }) => agent)
   data.roles = raw?.roles?.length ? raw.roles : initialRoles()
   data.users = raw?.users || [
     {
@@ -40,6 +47,7 @@ export function normalizeData(raw) {
     },
   ]
   data.reports = raw?.reports || []
+  data.localIncidentArchive = raw?.localIncidentArchive || []
   data.reportSettings = raw?.reportSettings || {
     enabled: true,
     sections: ['incidents', 'shifts', 'agents', 'equipment'],
@@ -59,20 +67,40 @@ export function StoreProvider({ children }) {
   const [data, setData] = useState(load)
   const [cloudUser, setCloudUser] = useState(null)
   const [cloudRole, setCloudRole] = useState(null)
-  const [session, setSession] = useState(() => sessionStorage.getItem('sepsa-session'))
-  const [authStatus, setAuthStatus] = useState({ loading: true, available: false, initialized: true, adminEmail: '', error: '' })
+  const [session, setSession] = useState(() =>
+    sessionStorage.getItem('sepsa-session'),
+  )
+  const [authStatus, setAuthStatus] = useState({
+    loading: true,
+    available: false,
+    initialized: true,
+    adminEmail: '',
+    error: '',
+  })
   const [storageError, setStorageError] = useState('')
   useEffect(() => {
     let active = true
     const initialize = async () => {
       try {
-        const stateResponse = await fetch('/api/auth/state', { cache: 'no-store' })
-        if (!stateResponse.ok) throw new Error('No se pudo contactar el servicio de acceso.')
+        const stateResponse = await fetch('/api/auth/state', {
+          cache: 'no-store',
+        })
+        if (!stateResponse.ok)
+          throw new Error('No se pudo contactar el servicio de acceso.')
         const state = await stateResponse.json()
         if (!active) return
-        setAuthStatus({ loading: false, available: true, initialized: !!state.initialized, adminEmail: state.adminEmail || '', error: '' })
+        setAuthStatus({
+          loading: false,
+          available: true,
+          initialized: !!state.initialized,
+          adminEmail: state.adminEmail || '',
+          error: '',
+        })
         if (!state.initialized) return
-        const meResponse = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' })
+        const meResponse = await fetch('/api/auth/me', {
+          credentials: 'same-origin',
+          cache: 'no-store',
+        })
         if (meResponse.status === 401) return
         if (!meResponse.ok) throw new Error('No se pudo validar la sesión.')
         const me = await meResponse.json()
@@ -83,34 +111,79 @@ export function StoreProvider({ children }) {
       } catch (error) {
         if (!active) return
         if (import.meta.env.DEV) {
-          setAuthStatus({ loading: false, available: false, initialized: true, adminEmail: '', error: '' })
+          setAuthStatus({
+            loading: false,
+            available: false,
+            initialized: true,
+            adminEmail: '',
+            error: '',
+          })
         } else {
-          setAuthStatus({ loading: false, available: false, initialized: true, adminEmail: '', error: error.message })
+          setAuthStatus({
+            loading: false,
+            available: false,
+            initialized: true,
+            adminEmail: '',
+            error: error.message,
+          })
         }
       }
     }
     initialize()
-    return () => { active = false }
+    return () => {
+      active = false
+    }
   }, [])
-  const localUser = import.meta.env.DEV && !authStatus.available ? data.users.find((u) => u.id === session && u.activo) : null
+  const localUser =
+    import.meta.env.DEV && !authStatus.available
+      ? data.users.find((u) => u.id === session && u.activo)
+      : null
   const user = authStatus.available ? cloudUser : localUser
-  const role = authStatus.available ? cloudRole || data.roles.find((r) => r.id === user?.role) : data.roles.find((r) => r.id === user?.role)
+  const role = authStatus.available
+    ? cloudRole || data.roles.find((r) => r.id === user?.role)
+    : data.roles.find((r) => r.id === user?.role)
   const can = (module, action = 'view') =>
     !!role?.permissions?.[module]?.includes(action)
+  const { incidentsReady, incidentSyncError } = useCloudIncidents(
+    authStatus.available,
+    user,
+    role?.permissions,
+    data,
+    setData,
+  )
   useEffect(() => {
     // El evento storage notifica inmediatamente a las otras pestañas del mismo origen.
     const receive = (event) => {
       if (event.key !== KEY || !event.newValue) return
       try {
-        setData(normalizeData(JSON.parse(event.newValue)))
+        const incoming = normalizeData(JSON.parse(event.newValue))
+        setData((current) =>
+          authStatus.available
+            ? {
+                ...incoming,
+                incidents: current.incidents,
+                users: current.users,
+                roles: current.roles,
+              }
+            : incoming,
+        )
       } catch {}
     }
     window.addEventListener('storage', receive)
     return () => window.removeEventListener('storage', receive)
-  }, [])
+  }, [authStatus.available])
   useEffect(() => {
     try {
-      const serialized = JSON.stringify(data)
+      const serialized = JSON.stringify(
+        authStatus.available
+          ? {
+              ...data,
+              incidents: data.incidents.filter((i) => !i.createdBy),
+              users: [],
+              roles: [],
+            }
+          : data,
+      )
       if (localStorage.getItem(KEY) !== serialized)
         localStorage.setItem(KEY, serialized)
       setStorageError('')
@@ -119,7 +192,7 @@ export function StoreProvider({ children }) {
         'No se pudieron guardar los cambios: el almacenamiento del navegador está lleno. Exporta un respaldo.',
       )
     }
-  }, [data])
+  }, [data, authStatus.available])
   useEffect(() => {
     const generate = () =>
       setData((d) => {
@@ -140,10 +213,16 @@ export function StoreProvider({ children }) {
               ],
             }
       })
+    if (authStatus.loading || (authStatus.available && !incidentsReady)) return
     generate()
     const timer = setInterval(generate, 30000)
     return () => clearInterval(timer)
-  }, [data.reportSettings])
+  }, [
+    data.reportSettings,
+    authStatus.loading,
+    authStatus.available,
+    incidentsReady,
+  ])
   const moduleFor = (col) =>
     ({
       categories: 'equipment',
@@ -155,28 +234,58 @@ export function StoreProvider({ children }) {
   const allowed = (col, action) => can(moduleFor(col), action)
   const login = async (username, password) => {
     if (!authStatus.available) {
-      if (!import.meta.env.DEV) throw new Error(authStatus.error || 'El servicio de acceso no está disponible.')
+      if (!import.meta.env.DEV)
+        throw new Error(
+          authStatus.error || 'El servicio de acceso no está disponible.',
+        )
       const { passwordHash } = await import('./access')
-      const local = data.users.find((u) => u.activo && u.username.toLowerCase() === username.trim().toLowerCase())
-      if (!local?.salt || (await passwordHash(password, local.salt)) !== local.passwordHash) throw new Error('Usuario o contraseña incorrectos.')
+      const local = data.users.find(
+        (u) =>
+          u.activo &&
+          u.username.toLowerCase() === username.trim().toLowerCase(),
+      )
+      if (
+        !local?.salt ||
+        (await passwordHash(password, local.salt)) !== local.passwordHash
+      )
+        throw new Error('Usuario o contraseña incorrectos.')
       sessionStorage.setItem('sepsa-session', local.id)
       setSession(local.id)
-      setAuthStatus((value) => ({ ...value, loading: false, initialized: true }))
+      setAuthStatus((value) => ({
+        ...value,
+        loading: false,
+        initialized: true,
+      }))
       return
     }
-    const result = await fetch('/api/auth/login', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: username.trim(), password }) })
+    const result = await fetch('/api/auth/login', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: username.trim(), password }),
+    })
     const payload = await result.json()
-    if (!result.ok) throw new Error(payload.error || 'No se pudo iniciar sesión.')
+    if (!result.ok)
+      throw new Error(payload.error || 'No se pudo iniciar sesión.')
     setCloudUser(payload.user)
     setCloudRole(payload.role)
     setAuthStatus((value) => ({ ...value, initialized: true }))
     await loadCloudAdmin(payload.user, payload.role, true, setData)
   }
   const bootstrap = async (input) => {
-    if (!authStatus.available) throw new Error(authStatus.error || 'El servicio de acceso no está disponible.')
-    const result = await fetch('/api/auth/bootstrap', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) })
+    if (!authStatus.available)
+      throw new Error(
+        authStatus.error || 'El servicio de acceso no está disponible.',
+      )
+    const result = await fetch('/api/auth/bootstrap', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    })
     const payload = await result.json()
-    if (!result.ok) throw new Error(payload.error || 'No se pudo configurar el acceso.')
+    if (!result.ok)
+      throw new Error(payload.error || 'No se pudo configurar el acceso.')
     setCloudUser(payload.user)
     setCloudRole(payload.role)
     setAuthStatus((value) => ({ ...value, initialized: true }))
@@ -194,11 +303,18 @@ export function StoreProvider({ children }) {
       role,
       can,
       authStatus,
-      storageError,
+      incidentsReady,
+      storageError: incidentSyncError || storageError,
       login,
       bootstrap,
       logout: async () => {
-        if (authStatus.available) await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: '{}' }).catch(() => {})
+        if (authStatus.available)
+          await fetch('/api/auth/logout', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'content-type': 'application/json' },
+            body: '{}',
+          }).catch(() => {})
         sessionStorage.removeItem('sepsa-session')
         setSession(null)
         setCloudUser(null)
@@ -211,18 +327,117 @@ export function StoreProvider({ children }) {
             u.id === 'uadmin' && !u.passwordHash ? { ...u, ...patch } : u,
           ),
         })),
-      add: async (col, item) => {
+      add: (col, item) => {
         if (!allowed(col, 'create')) return false
-        if (authStatus.available && (col === 'users' || col === 'roles')) {
-          const response = await fetch(`/api/admin/${col}`, { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(col === 'users' ? { name: item.nombre, email: item.username, password: item.password, roleId: item.role, active: item.activo, agentId: item.agent } : { name: item.nombre, permissions: item.permissions }) })
-          const result = await response.json()
-          if (!response.ok) throw new Error(result.error || 'No se pudo guardar.')
-          const saved = result.user || result.role
-          setData((d) => ({ ...d, [col]: [saved, ...d[col].filter((row) => row.id !== saved.id)] }))
-          return saved.id
-        }
+        if (col === 'agents' && !authStatus.available && item.password)
+          return (async () => {
+            const { credentials } = await import('./access')
+            if (
+              data.users.some(
+                (u) => u.username.toLowerCase() === item.email?.toLowerCase(),
+              )
+            )
+              throw new Error('Este correo ya tiene un acceso.')
+            const id = uid('a')
+            const { password, lat, lng, ...profile } = item
+            const access = {
+              id: uid('u'),
+              nombre: item.nombre,
+              username: item.email.toLowerCase(),
+              role: 'agent',
+              agent: id,
+              activo: true,
+              ...(await credentials(password)),
+            }
+            setData((d) => ({
+              ...d,
+              agents: [{ ...profile, id }, ...d.agents],
+              users: [access, ...d.users],
+            }))
+            return id
+          })()
+        if (col === 'agents' && authStatus.available)
+          return (async () => {
+            const id = uid('a')
+            const { password, lat, lng, ...profile } = item
+            const result = await incidentRequest('/api/agents', 'POST', {
+              ...profile,
+              id,
+              password,
+              clienteNombre:
+                data.clients.find((c) => c.id === item.sitio)?.nombre || '',
+            })
+            setData((d) => ({
+              ...d,
+              agents: [{ ...profile, id: result.agentId }, ...d.agents],
+              users: can('users') ? [result.user, ...d.users] : d.users,
+            }))
+            return result.agentId
+          })()
+
+        if (
+          authStatus.available &&
+          ['incidents', 'users', 'roles'].includes(col)
+        )
+          return (async () => {
+            if (authStatus.available && col === 'incidents') {
+              const { incident } = await incidentRequest(
+                '/api/incidents',
+                'POST',
+                withIncidentNames(item, data),
+              )
+              setData((d) => ({
+                ...d,
+                incidents: [
+                  incident,
+                  ...d.incidents.filter((i) => i.id !== incident.id),
+                ],
+              }))
+              return incident.id
+            }
+            if (authStatus.available && (col === 'users' || col === 'roles')) {
+              if (col === 'users' && item.agent)
+                await syncAgentProfile(item.agent, data)
+              const response = await fetch(`/api/admin/${col}`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(
+                  col === 'users'
+                    ? {
+                        name: item.nombre,
+                        email: item.username,
+                        password: item.password,
+                        roleId: item.role,
+                        active: item.activo,
+                        agentId: item.agent,
+                      }
+                    : { name: item.nombre, permissions: item.permissions },
+                ),
+              })
+              const result = await response.json()
+              if (!response.ok)
+                throw new Error(result.error || 'No se pudo guardar.')
+              const saved = result.user || result.role
+              setData((d) => ({
+                ...d,
+                [col]: [saved, ...d[col].filter((row) => row.id !== saved.id)],
+              }))
+              return saved.id
+            }
+          })()
         const id = uid(col[0])
-        setData((d) => ({ ...d, [col]: [{ ...item, id }, ...d[col]] }))
+        setData((d) => ({
+          ...d,
+          [col]: [
+            {
+              ...item,
+              id,
+              ...(col === 'incidents' ? { createdBy: user.id } : {}),
+            },
+            ...d[col],
+          ],
+        }))
         return id
       },
       addShiftPlan: (items, skipConflicts = false) => {
@@ -264,17 +479,60 @@ export function StoreProvider({ children }) {
           firstDate: records[0].fecha,
         }
       },
-      update: async (col, id, patch) => {
+      update: (col, id, patch) => {
         if (!allowed(col, 'update')) return false
-        if (authStatus.available && (col === 'users' || col === 'roles')) {
-          const response = await fetch(`/api/admin/${col}/${encodeURIComponent(id)}`, { method: 'PATCH', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(col === 'users' ? { name: patch.nombre, email: patch.username, password: patch.password, roleId: patch.role, active: patch.activo, agentId: patch.agent } : { name: patch.nombre, permissions: patch.permissions }) })
-          const result = await response.json()
-          if (!response.ok) throw new Error(result.error || 'No se pudo guardar.')
-          const saved = result.user || result.role
-          setData((d) => ({ ...d, [col]: d[col].map((row) => row.id === id ? saved : row) }))
-          if (col === 'roles' && user?.role === id) setCloudRole(saved)
-          return true
-        }
+        if (
+          authStatus.available &&
+          ['incidents', 'users', 'roles'].includes(col)
+        )
+          return (async () => {
+            if (authStatus.available && col === 'incidents') {
+              const { incident } = await incidentRequest(
+                `/api/incidents/${encodeURIComponent(id)}`,
+                'PATCH',
+                withIncidentNames(patch, data),
+              )
+              setData((d) => ({
+                ...d,
+                incidents: d.incidents.map((i) => (i.id === id ? incident : i)),
+              }))
+              return true
+            }
+            if (authStatus.available && (col === 'users' || col === 'roles')) {
+              if (col === 'users' && patch.agent)
+                await syncAgentProfile(patch.agent, data)
+              const response = await fetch(
+                `/api/admin/${col}/${encodeURIComponent(id)}`,
+                {
+                  method: 'PATCH',
+                  credentials: 'same-origin',
+                  headers: { 'content-type': 'application/json' },
+                  body: JSON.stringify(
+                    col === 'users'
+                      ? {
+                          name: patch.nombre,
+                          email: patch.username,
+                          password: patch.password,
+                          roleId: patch.role,
+                          active: patch.activo,
+                          agentId: patch.agent,
+                        }
+                      : { name: patch.nombre, permissions: patch.permissions },
+                  ),
+                },
+              )
+              const result = await response.json()
+              if (!response.ok)
+                throw new Error(result.error || 'No se pudo guardar.')
+              const saved = result.user || result.role
+              setData((d) => ({
+                ...d,
+                [col]: d[col].map((row) => (row.id === id ? saved : row)),
+              }))
+              if (col === 'roles' && user?.role === id) setCloudRole(saved)
+              return true
+            }
+          })()
         setData((d) => ({
           ...d,
           [col]: d[col].map((r) =>
@@ -283,15 +541,40 @@ export function StoreProvider({ children }) {
         }))
         return true
       },
-      remove: async (col, id) => {
+      remove: (col, id) => {
         if (!allowed(col, 'delete')) return false
-        if (authStatus.available && (col === 'users' || col === 'roles')) {
-          const response = await fetch(`/api/admin/${col}/${encodeURIComponent(id)}`, { method: 'DELETE', credentials: 'same-origin' })
-          const result = response.status === 204 ? {} : await response.json()
-          if (!response.ok) throw new Error(result.error || 'No se pudo eliminar.')
-          setData((d) => ({ ...d, [col]: d[col].filter((row) => row.id !== id) }))
-          return true
-        }
+        if (
+          authStatus.available &&
+          ['incidents', 'users', 'roles'].includes(col)
+        )
+          return (async () => {
+            if (authStatus.available && col === 'incidents') {
+              await incidentRequest(
+                `/api/incidents/${encodeURIComponent(id)}`,
+                'DELETE',
+              )
+              setData((d) => ({
+                ...d,
+                incidents: d.incidents.filter((i) => i.id !== id),
+              }))
+              return true
+            }
+            if (authStatus.available && (col === 'users' || col === 'roles')) {
+              const response = await fetch(
+                `/api/admin/${col}/${encodeURIComponent(id)}`,
+                { method: 'DELETE', credentials: 'same-origin' },
+              )
+              const result =
+                response.status === 204 ? {} : await response.json()
+              if (!response.ok)
+                throw new Error(result.error || 'No se pudo eliminar.')
+              setData((d) => ({
+                ...d,
+                [col]: d[col].filter((row) => row.id !== id),
+              }))
+              return true
+            }
+          })()
         if (
           col === 'categories' &&
           data.equipment.some((e) => e.categoria === id)
@@ -336,12 +619,30 @@ export function StoreProvider({ children }) {
         )
           return false
         const agent = data.agents.find((a) => a.id === user.agent)
+        if (authStatus.available) {
+          return (async () => {
+            const { incident } = await incidentRequest(
+              '/api/incidents',
+              'POST',
+              item,
+            )
+            setData((d) => ({
+              ...d,
+              incidents: [
+                incident,
+                ...d.incidents.filter((i) => i.id !== incident.id),
+              ],
+            }))
+            return true
+          })()
+        }
         setData((d) => ({
           ...d,
           incidents: [
             {
               ...item,
               id: uid('i'),
+              createdBy: user.id,
               agente: agent.id,
               cliente: agent.sitio,
               fecha: reportDate(),
@@ -375,6 +676,7 @@ export function StoreProvider({ children }) {
               ...buildSeed(),
               users: data.users,
               roles: data.roles,
+              ...(authStatus.available ? { incidents: data.incidents } : {}),
             }),
           )
       },
@@ -390,14 +692,36 @@ export function StoreProvider({ children }) {
               categories: data.categories,
               serviceTypes: data.serviceTypes,
               reports: [],
+              ...(authStatus.available ? { incidents: data.incidents } : {}),
             }),
           )
       },
       replaceAll: (obj) => {
-        if (can('settings', 'update')) setData(normalizeData(obj))
+        if (can('settings', 'update'))
+          setData(
+            normalizeData(
+              authStatus.available
+                ? {
+                    ...obj,
+                    users: data.users,
+                    roles: data.roles,
+                    incidents: data.incidents,
+                  }
+                : obj,
+            ),
+          )
       },
     }),
-    [data, user, role, session, authStatus, storageError],
+    [
+      data,
+      user,
+      role,
+      session,
+      authStatus,
+      storageError,
+      incidentsReady,
+      incidentSyncError,
+    ],
   )
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>
 }
@@ -408,11 +732,21 @@ async function loadCloudAdmin(user, role, active, setData) {
     return
   }
   const [usersResponse, rolesResponse] = await Promise.all([
-    fetch('/api/admin/users', { credentials: 'same-origin', cache: 'no-store' }),
-    fetch('/api/admin/roles', { credentials: 'same-origin', cache: 'no-store' }),
+    fetch('/api/admin/users', {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    }),
+    fetch('/api/admin/roles', {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    }),
   ])
-  if (!usersResponse.ok || !rolesResponse.ok) throw new Error('No se pudo cargar la administración de accesos.')
-  const [{ users }, { roles }] = await Promise.all([usersResponse.json(), rolesResponse.json()])
+  if (!usersResponse.ok || !rolesResponse.ok)
+    throw new Error('No se pudo cargar la administración de accesos.')
+  const [{ users }, { roles }] = await Promise.all([
+    usersResponse.json(),
+    rolesResponse.json(),
+  ])
   if (active) setData((d) => ({ ...d, users, roles }))
 }
 export const useStore = () => useContext(Ctx)

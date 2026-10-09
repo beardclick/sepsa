@@ -2,7 +2,7 @@
 
 ## Publicación de la versión de pruebas
 
-Esta configuración publica el frontend y la API de cuentas en Cloudflare Workers con Static Assets. Los usuarios, contraseñas, sesiones y permisos de rol se guardan en D1. Los otros registros del CRM continúan en localStorage y los PDF en IndexedDB de cada navegador.
+Esta configuración publica el frontend y la API de cuentas e incidentes en Cloudflare Workers con Static Assets. Usuarios, contraseñas, sesiones, roles e incidentes se guardan en D1. IncidentHub distribuye avisos entre sesiones mediante WebSockets. Los otros registros del CRM continúan en localStorage y los PDF en IndexedDB de cada navegador.
 
 1. Crear un repositorio privado vacío en GitHub, sin README ni archivos iniciales, y compartir su URL para subir el código.
 2. Entrar en Cloudflare y abrir Workers & Pages. Crear una aplicación e importar el repositorio desde GitHub. Autorizar a Cloudflare a acceder a ese repositorio.
@@ -39,14 +39,16 @@ No guardar tokens en el repositorio. La conexión de Git en Cloudflare gestiona 
 | Hosting | Cloudflare Workers Static Assets |
 | API | Cloudflare Worker; validación, operaciones y permisos en servidor |
 | Datos de acceso | Cloudflare D1; usuarios, contraseñas hasheadas, sesiones y roles (ya implementado) |
-| Datos operativos | Cloudflare D1; clientes, agentes, contratos, turnos, incidentes e informes (pendiente de migrar desde localStorage) |
+| Datos operativos | Cloudflare D1; incidentes y perfiles mínimos de acceso de agentes (implementado); clientes, fichas completas de agentes, contratos, turnos e informes pendientes de migrar desde localStorage |
 | Archivos | Cloudflare R2 privado; contratos PDF, evidencias e informes |
 | Acceso | Autenticación en servidor y sesiones con cookies HttpOnly; autorización por rol en cada operación |
-| Tiempo real | Durable Objects y WebSockets; avisos de incidentes entre dispositivos |
+| Tiempo real | Durable Objects y WebSockets; avisos de incidentes entre dispositivos (implementado, excluye al creador) |
 | Informes diarios | Cron Trigger y Worker; captura diaria idempotente por fecha de Panamá, aunque nadie abra la app |
 | Versiones y publicación | GitHub y Workers Builds |
 
-Las capas de API, D1, R2, sesiones, WebSockets y Cron todavía requieren implementación. El control de roles local actual no sustituye la autorización de la API. La migración debe importar los datos existentes y los PDF, conservar sus relaciones y comprobar los permisos con varios usuarios antes de usar datos operativos.
+La API de usuarios e incidentes, sus permisos en servidor, D1 y los avisos WebSocket están implementados. Falta migrar las otras colecciones operativas y los PDF a D1/R2, y añadir Cron para informes con la app cerrada. Las migraciones D1 se aplican con `npx wrangler d1 migrations apply crm-seguridad-db --remote` antes de desplegar. La configuración fija la cuenta de info@seguridadespecializada.com para evitar publicaciones en otras cuentas.
+
+Para la prueba de integración local, aplicar migraciones con `--local`, crear `.dev.vars` (ignorado por Git) con `BOOTSTRAP_ADMIN_EMAIL=admin@example.com` y `BOOTSTRAP_SETUP_KEY=local-integration-only`, iniciar `npx wrangler dev --port 8787` y ejecutar `node tests/cloud-incidents.integration.mjs`. La prueba crea y elimina datos solo en el D1 local.
 
 Documentación oficial:
 
@@ -54,3 +56,5 @@ Documentación oficial:
 - https://developers.cloudflare.com/workers/ci-cd/builds/configuration/
 - https://developers.cloudflare.com/use-cases/web-apps/
 - https://developers.cloudflare.com/workers/configuration/cron-triggers/
+
+Al crear un agente, se solicita correo y contraseña inicial y se crea automáticamente su usuario con rol Agentes y su ficha vinculada. El agente entra directamente a Mis incidentes; el menú administrativo no muestra ese acceso.

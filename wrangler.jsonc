@@ -1,6 +1,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "crm-seguridad",
+  "account_id": "03efbf650539d06418862c01b477a504",
   "compatibility_date": "2026-10-08",
   "vars": {
     "BOOTSTRAP_ADMIN_EMAIL": "info@seguridadespecializada.com"
@@ -13,9 +14,14 @@
     }
   ],
   "main": "./worker/index.js",
+  "durable_objects": {
+    "bindings": [{ "name": "INCIDENT_HUB", "class_name": "IncidentHub" }]
+  },
+  "migrations": [{ "tag": "incident-hub-v1", "new_sqlite_classes": ["IncidentHub"] }],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
+    "run_worker_first": ["/api/*"],
     "not_found_handling": "single-page-application"
   }
 }

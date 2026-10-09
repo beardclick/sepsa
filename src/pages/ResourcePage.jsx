@@ -28,6 +28,7 @@ export default function ResourcePage({ resKey }) {
   const [filter, setFilter] = useState('')
   const [editing, setEditing] = useState(null) // {} = nuevo
   const [deleting, setDeleting] = useState(null)
+  const [deleteError, setDeleteError] = useState('')
   const [sort, setSort] = useState(null) // { key, dir }
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
@@ -112,9 +113,9 @@ export default function ResourcePage({ resKey }) {
         },
   ]
 
-  const save = (vals) => {
-    if (editing.id) update(cfg.collection, editing.id, vals)
-    else add(cfg.collection, vals)
+  const save = async (vals) => {
+    if (editing.id) await update(cfg.collection, editing.id, vals)
+    else await add(cfg.collection, vals)
     setEditing(null)
   }
 
@@ -397,9 +398,14 @@ export default function ResourcePage({ resKey }) {
               </Button>
               <Button
                 variant="danger"
-                onClick={() => {
-                  remove(cfg.collection, deleting.id)
-                  setDeleting(null)
+                onClick={async () => {
+                  try {
+                    await remove(cfg.collection, deleting.id)
+                    setDeleting(null)
+                    setDeleteError('')
+                  } catch (error) {
+                    setDeleteError(error.message)
+                  }
                 }}
               >
                 Eliminar
@@ -411,6 +417,11 @@ export default function ResourcePage({ resKey }) {
             ¿Seguro que deseas eliminar <b>{titleOf(resKey, deleting, data)}</b>
             ?
           </p>
+          {deleteError && (
+            <p role="alert" className="mt-3 text-sm text-red-500">
+              {deleteError}
+            </p>
+          )}
         </Modal>
       )}
     </div>

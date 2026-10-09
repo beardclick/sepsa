@@ -225,7 +225,7 @@ describe('Edición desde fichas relacionadas', () => {
       path,
     )
   }
-  it('edita un equipo directamente en Equipo asignado y conserva la ficha del agente', () => {
+  it('edita un equipo directamente en Equipo asignado y conserva la ficha del agente', async () => {
     detailRoutes()
     const assigned = screen.getByRole('region', { name: 'Equipo asignado' })
     fireEvent.click(
@@ -242,11 +242,11 @@ describe('Edición desde fichas relacionadas', () => {
     )
     expect(screen.getByRole('heading', { name: 'Jorge Ramírez' })).toBeTruthy()
     expect(within(assigned).getByText('Radio actualizado')).toBeTruthy()
-    expect(screen.queryByRole('dialog')).toBeNull()
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
   it.each(['guardar', 'cancelar'])(
     'vuelve al agente al %s la edición de la ficha de un equipo',
-    (action) => {
+    async (action) => {
       detailRoutes()
       const assigned = screen.getByRole('region', { name: 'Equipo asignado' })
       fireEvent.click(within(assigned).getAllByRole('link')[0])
@@ -262,16 +262,18 @@ describe('Edición desde fichas relacionadas', () => {
         })
         fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
       } else fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
-      expect(
-        screen.getByRole('heading', { name: 'Jorge Ramírez' }),
-      ).toBeTruthy()
+      await waitFor(() =>
+        expect(
+          screen.getByRole('heading', { name: 'Jorge Ramírez' }),
+        ).toBeTruthy(),
+      )
       expect(
         screen.getByRole('region', { name: 'Equipo asignado' }),
       ).toBeTruthy()
       expect(screen.queryByRole('dialog')).toBeNull()
     },
   )
-  it('vuelve al cliente después de editar un contrato relacionado', () => {
+  it('vuelve al cliente después de editar un contrato relacionado', async () => {
     detailRoutes('/clientes/c1')
     fireEvent.click(
       within(screen.getByRole('region', { name: 'Contratos' })).getAllByRole(
@@ -286,11 +288,15 @@ describe('Edición desde fichas relacionadas', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
     expect(api.data.contracts[0].agentes).toBe(8)
-    expect(
-      screen.getByRole('heading', { name: 'Banco del Istmo – Sucursal David' }),
-    ).toBeTruthy()
+    await waitFor(() =>
+      expect(
+        screen.getByRole('heading', {
+          name: 'Banco del Istmo – Sucursal David',
+        }),
+      ).toBeTruthy(),
+    )
   })
-  it('regresa a la ficha de origen después de eliminar el registro relacionado', () => {
+  it('regresa a la ficha de origen después de eliminar el registro relacionado', async () => {
     detailRoutes()
     fireEvent.click(
       within(
@@ -305,8 +311,12 @@ describe('Edición desde fichas relacionadas', () => {
         name: 'Eliminar',
       }),
     )
+    await waitFor(() =>
+      expect(
+        screen.getByRole('heading', { name: 'Jorge Ramírez' }),
+      ).toBeTruthy(),
+    )
     expect(api.data.equipment.some((e) => e.id === 'e1')).toBe(false)
-    expect(screen.getByRole('heading', { name: 'Jorge Ramírez' })).toBeTruthy()
   })
   it('mantiene el regreso al listado para una ficha abierta directamente', () => {
     detailRoutes('/equipos/e1')
@@ -351,8 +361,9 @@ describe('Informes', () => {
     expect(api.data.reports[0].comentarios).toBe('Comentario de cierre')
     expect(screen.queryByRole('dialog')).toBeNull()
   })
-  it('cancelar la advertencia conserva el informe anterior', () => {
+  it('cancelar la advertencia conserva el informe anterior', async () => {
     mount(<ReportsPage />)
+    await waitFor(() => expect(api.data.reports).toHaveLength(1))
     const before = JSON.stringify(api.data.reports)
     fireEvent.click(screen.getByRole('button', { name: 'Generar informe' }))
     fireEvent.change(screen.getByRole('textbox'), {
@@ -441,7 +452,9 @@ describe('Rutas y navegación', () => {
   })
   it('abre solamente un submenú a la vez y permite cerrarlo', () => {
     openApp('/equipos/categorias', 'admin')
-    const equipment = screen.getByRole('button', { name: 'Submenú de Equipos' })
+    const equipment = screen.getByRole('button', {
+      name: 'Submenú de Equipos',
+    })
     const contracts = screen.getByRole('button', {
       name: 'Submenú de Contratos',
     })
@@ -457,17 +470,30 @@ describe('Rutas y navegación', () => {
 })
 
 describe('Avisos de incidentes', () => {
-  it('avisa al registrar un incidente sin repetir los existentes o las ediciones', () => {
+  it('avisa al recibir un incidente sin repetir los existentes o las ediciones', () => {
     mount(<IncidentNotifications />)
     expect(screen.queryByText('Nuevo incidente')).toBeNull()
-    let id
-    act(() => {
-      id = api.add('incidents', {
-        titulo: 'Alerta nueva',
-        severidad: 'Alta',
-        cliente: 'c1',
-      })
-    })
+    const id = 'remote-ui'
+    act(() =>
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: 'sepsa-crm-data-v3',
+          newValue: JSON.stringify({
+            ...api.data,
+            incidents: [
+              {
+                id,
+                titulo: 'Alerta nueva',
+                severidad: 'Alta',
+                cliente: 'c1',
+                createdBy: 'other-user',
+              },
+              ...api.data.incidents,
+            ],
+          }),
+        }),
+      ),
+    )
     expect(screen.getByText('Nuevo incidente')).toBeTruthy()
     expect(screen.getByText('Alerta nueva')).toBeTruthy()
     act(() => api.update('incidents', id, { estado: 'Resuelto' }))
@@ -529,7 +555,8 @@ describe('Avisos de incidentes', () => {
     act(() =>
       api.submitIncident({ titulo: 'Mi nuevo incidente', severidad: 'Baja' }),
     )
-    expect(screen.getByText('Mi nuevo incidente')).toBeTruthy()
+    expect(api.data.incidents[0].titulo).toBe('Mi nuevo incidente')
+    expect(screen.queryByRole('status')).toBeNull()
   })
 })
 
@@ -680,5 +707,42 @@ describe('Programación semanal y próximas 48 horas', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('Alta automática de acceso de agente', () => {
+  it('crea el usuario vinculado sin guardar su contraseña ni coordenadas en la ficha', async () => {
+    mount(<ResourcePage resKey="agents" />)
+    fireEvent.click(
+      screen.getAllByRole('button', { name: /Agregar agente/ })[0],
+    )
+    expect(screen.queryByLabelText(/Latitud|Longitud/)).toBeNull()
+    fireEvent.change(screen.getByLabelText('Nombre completo *'), {
+      target: { value: 'Agente nuevo' },
+    })
+    fireEvent.change(screen.getByLabelText('Documento *'), {
+      target: { value: 'doc-nuevo' },
+    })
+    fireEvent.change(screen.getByLabelText('Correo de acceso *'), {
+      target: { value: 'nuevo@example.com' },
+    })
+    fireEvent.change(
+      screen.getByLabelText('Contraseña inicial (mínimo 12 caracteres) *'),
+      { target: { value: 'Clave-inicial-segura-2026' } },
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Crear agente' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    const agent = api.data.agents.find((a) => a.nombre === 'Agente nuevo')
+    const user = api.data.users.find((u) => u.agent === agent.id)
+    expect(user).toMatchObject({
+      role: 'agent',
+      username: 'nuevo@example.com',
+      activo: true,
+    })
+    expect(user.passwordHash).toBeTruthy()
+    expect(agent.password).toBeUndefined()
+    expect(
+      api.data.agents.every((a) => a.lat === undefined && a.lng === undefined),
+    ).toBe(true)
   })
 })

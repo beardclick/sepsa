@@ -77,7 +77,7 @@ function Extras({ resKey, row, data, can }) {
     const cur = onDuty.find((d) => d.agent.id === row.id)
     const nxt = upcoming.find((u) => u.agent.id === row.id)
     const client = find('clients', row.sitio)
-    const pos = agentPos(row, client)
+
     const licDays = row.licencia
       ? daysBetween(parseDT(today), parseDT(row.licencia))
       : null
@@ -122,21 +122,6 @@ function Extras({ resKey, row, data, can }) {
               />
             </div>
           )}
-        </SideCard>
-        <SideCard title="Ubicación">
-          <MiniMap
-            marker={
-              pos && {
-                id: row.id,
-                kind: 'agent',
-                lat: pos[0],
-                lng: pos[1],
-                label: initials(row.nombre),
-                title: row.nombre,
-                sub: client?.nombre || '',
-              }
-            }
-          />
         </SideCard>
       </>
     )
@@ -414,9 +399,9 @@ function Related({ rel, row, resKey, data, navigationState }) {
           data={data}
           lockedFields={editing.id ? [] : [rel.by]}
           onClose={() => setEditing(null)}
-          onSave={(values) => {
-            if (editing.id) update(target.collection, editing.id, values)
-            else add(target.collection, { ...values, [rel.by]: key })
+          onSave={async (values) => {
+            if (editing.id) await update(target.collection, editing.id, values)
+            else await add(target.collection, { ...values, [rel.by]: key })
             setEditing(null)
           }}
           onDelete={
@@ -442,9 +427,13 @@ function Related({ rel, row, resKey, data, navigationState }) {
               </Button>
               <Button
                 variant="danger"
-                onClick={() => {
-                  remove(target.collection, deleting.id)
-                  setDeleting(null)
+                onClick={async () => {
+                  try {
+                    await remove(target.collection, deleting.id)
+                    setDeleting(null)
+                  } catch (error) {
+                    setPlanMessage(error.message)
+                  }
                 }}
               >
                 Eliminar
@@ -496,7 +485,9 @@ export default function DetailPage({ resKey }) {
       )
     : cfg.title
   const backState = { detailTrail: trail.slice(0, -1) }
-  const navigationState = { detailTrail: [...trail, { resKey, id }].slice(-10) }
+  const navigationState = {
+    detailTrail: [...trail, { resKey, id }].slice(-10),
+  }
   const closeEditing = () => {
     setEditing(false)
     if (origin) navigate(backPath, { state: backState })
@@ -532,7 +523,7 @@ export default function DetailPage({ resKey }) {
     .filter(Boolean)
     .join(' · ')
   const info = cfg.fields.filter(
-    (f) => !['image', 'coord', 'location'].includes(f.type),
+    (f) => !f.createOnly && !['image', 'coord', 'location'].includes(f.type),
   )
   const lat = row.lat,
     lng = row.lng
@@ -689,16 +680,19 @@ export default function DetailPage({ resKey }) {
                   <dd className="mt-1 text-sm">{renderValue(f)}</dd>
                 </div>
               ))}
-              {resKey !== 'clients' && lat !== undefined && lat !== '' && (
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-muted">
-                    Coordenadas
-                  </dt>
-                  <dd className="mt-1 text-sm">
-                    {Number(lat).toFixed(5)}, {Number(lng).toFixed(5)}
-                  </dd>
-                </div>
-              )}
+              {resKey !== 'clients' &&
+                resKey !== 'agents' &&
+                lat !== undefined &&
+                lat !== '' && (
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-wider text-muted">
+                      Coordenadas
+                    </dt>
+                    <dd className="mt-1 text-sm">
+                      {Number(lat).toFixed(5)}, {Number(lng).toFixed(5)}
+                    </dd>
+                  </div>
+                )}
             </dl>
           </Card>
           {(cfg.related || [])
@@ -730,8 +724,8 @@ export default function DetailPage({ resKey }) {
           record={row}
           data={data}
           onClose={closeEditing}
-          onSave={(vals) => {
-            update(cfg.collection, row.id, vals)
+          onSave={async (vals) => {
+            await update(cfg.collection, row.id, vals)
             closeEditing()
           }}
           onDelete={
@@ -757,10 +751,15 @@ export default function DetailPage({ resKey }) {
               </Button>
               <Button
                 variant="danger"
-                onClick={() => {
-                  remove(cfg.collection, row.id)
-                  setDeleting(false)
-                  navigate(backPath, { state: backState })
+                onClick={async () => {
+                  try {
+                    await remove(cfg.collection, row.id)
+                    setDeleting(false)
+                    navigate(backPath, { state: backState })
+                  } catch (error) {
+                    setFileError(error.message)
+                    setDeleting(false)
+                  }
                 }}
               >
                 Eliminar
