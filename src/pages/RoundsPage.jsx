@@ -1,3 +1,4 @@
+import { roundStops, routeTimeline } from '../roundRoute'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { incidentRequest } from '../cloudIncidents'
@@ -7,10 +8,8 @@ import { fdate, ftime } from '../config'
 import { dayKey } from '../duty'
 const blank = () => ({
   titulo: '',
-  lugar: '',
+  paradas: [{ lugar: '', inicio: '08:00', fin: '09:00' }],
   fecha: dayKey(new Date()),
-  inicio: '08:00',
-  fin: '09:00',
   asignados: [],
   comentarios: '',
 })
@@ -22,6 +21,7 @@ export default function RoundsPage() {
     [loading, setLoading] = useState(true),
     [error, setError] = useState(''),
     [form, setForm] = useState(null),
+    [detailId, setDetailId] = useState(null),
     [busy, setBusy] = useState(false),
     [confirmDelete, setConfirmDelete] = useState(false)
   const generation = useRef(0)
@@ -96,7 +96,27 @@ export default function RoundsPage() {
   const open = (record) => {
     setError('')
     setConfirmDelete(false)
-    setForm({ ...record, asignados: [...record.asignados] })
+    setForm({
+      ...record,
+      paradas: roundStops(record).map((stop) => ({ ...stop })),
+      asignados: [...record.asignados],
+    })
+  }
+  const detail = rounds.find((round) => round.id === detailId)
+  const changeStop = (index, key, value) =>
+    change(
+      'paradas',
+      form.paradas.map((stop, i) =>
+        i === index ? { ...stop, [key]: value } : stop,
+      ),
+    )
+  const moveStop = (index, direction) => {
+    const stops = [...form.paradas]
+    ;[stops[index], stops[index + direction]] = [
+      stops[index + direction],
+      stops[index],
+    ]
+    change('paradas', stops)
   }
   return (
     <div className="space-y-5">
@@ -127,10 +147,11 @@ export default function RoundsPage() {
               <tr>
                 {[
                   'Ronda',
-                  'Lugar',
+                  'Recorrido',
                   'Fecha',
                   'Horario',
-                  ...(admin ? ['Responsables', ''] : []),
+                  ...(admin ? ['Responsables'] : []),
+                  'Acciones',
                 ].map((title, i) => (
                   <th key={i} className="p-4">
                     {title}
@@ -149,11 +170,21 @@ export default function RoundsPage() {
                       </p>
                     )}
                   </td>
-                  <td className="p-4">{r.lugar}</td>
+                  <td className="p-4">
+                    <p>
+                      {roundStops(r)
+                        .map((stop) => stop.lugar)
+                        .join(' → ')}
+                    </p>
+                    <p className="text-xs text-muted">
+                      {roundStops(r).length} lugares
+                    </p>
+                  </td>
                   <td className="p-4 whitespace-nowrap">{fdate(r.fecha)}</td>
                   <td className="p-4 whitespace-nowrap">
-                    {ftime(r.inicio)} – {ftime(r.fin)}
-                    {r.fin < r.inicio && (
+                    {ftime(roundStops(r)[0].inicio)} –{' '}
+                    {ftime(roundStops(r).at(-1).fin)}
+                    {routeTimeline(roundStops(r)).at(-1).endDay > 0 && (
                       <p className="text-xs text-muted">
                         Termina al día siguiente
                       </p>
@@ -170,15 +201,20 @@ export default function RoundsPage() {
                           )
                           .join(', ')}
                       </td>
-                      <td className="p-4">
-                        {can('rounds', 'update') && (
-                          <Button variant="ghost" onClick={() => open(r)}>
-                            Editar
-                          </Button>
-                        )}
-                      </td>
                     </>
                   )}
+                  <td className="p-4">
+                    <div className="flex gap-2">
+                      <Button variant="ghost" onClick={() => setDetailId(r.id)}>
+                        Ver detalles
+                      </Button>
+                      {admin && can('rounds', 'update') && (
+                        <Button variant="ghost" onClick={() => open(r)}>
+                          Editar
+                        </Button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -196,6 +232,71 @@ export default function RoundsPage() {
           )
         )}
       </Card>
+      {detail && (
+        <Modal title="Detalles de ronda" onClose={() => setDetailId(null)}>
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold">{detail.titulo}</h3>
+            <p className="text-sm">Fecha de inicio: {fdate(detail.fecha)}</p>
+            <ol className="space-y-3">
+              {routeTimeline(roundStops(detail)).map((stop, index) => (
+                <li key={index} className="rounded-xl border border-line p-4">
+                  <p className="font-semibold">
+                    {index + 1}. {stop.lugar}
+                  </p>
+                  <p className="mt-1 text-sm">
+                    {ftime(stop.inicio)} – {ftime(stop.fin)}
+                  </p>
+                  {stop.startDay > 0 && (
+                    <p className="text-xs text-muted">
+                      {stop.startDay} día(s) después del inicio
+                    </p>
+                  )}
+                  {stop.endDay > stop.startDay && (
+                    <p className="text-xs text-muted">
+                      Termina al día siguiente
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ol>
+            {admin && (
+              <p className="text-sm">
+                <strong>Responsables: </strong>
+                {detail.asignados
+                  .map(
+                    (id) =>
+                      users.find((u) => u.id === id)?.nombre ||
+                      'Usuario no disponible',
+                  )
+                  .join(', ')}
+              </p>
+            )}
+            {detail.comentarios && (
+              <div>
+                <p className="text-sm font-bold">Comentarios</p>
+                <p className="whitespace-pre-wrap text-sm">
+                  {detail.comentarios}
+                </p>
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              {admin && can('rounds', 'update') && (
+                <Button
+                  onClick={() => {
+                    setDetailId(null)
+                    open(detail)
+                  }}
+                >
+                  Editar ronda
+                </Button>
+              )}
+              <Button variant="ghost" onClick={() => setDetailId(null)}>
+                Cerrar
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
       {form && (
         <Modal
           title={form.id ? 'Editar ronda' : 'Nueva ronda'}
@@ -214,53 +315,137 @@ export default function RoundsPage() {
                 onChange={(e) => change('titulo', e.target.value)}
               />
             </label>
-            <label className="block text-sm font-semibold">
-              Lugar
-              <input
-                className="input mt-1"
-                required
-                maxLength={300}
-                value={form.lugar}
-                onChange={(e) => change('lugar', e.target.value)}
+            <div className="max-w-sm">
+              <label htmlFor="round-date" className="text-sm font-semibold">
+                Fecha de inicio de la ronda
+              </label>
+              <DatePicker
+                id="round-date"
+                value={form.fecha}
+                onChange={(value) => change('fecha', value)}
               />
-            </label>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div>
-                <label htmlFor="round-date" className="text-sm font-semibold">
-                  Fecha
-                </label>
-                <DatePicker
-                  id="round-date"
-                  value={form.fecha}
-                  onChange={(value) => change('fecha', value)}
-                />
-              </div>
-              <div>
-                <label htmlFor="round-start" className="text-sm font-semibold">
-                  Desde
-                </label>
-                <TimePicker
-                  id="round-start"
-                  value={form.inicio}
-                  onChange={(value) => change('inicio', value)}
-                />
-              </div>
-              <div>
-                <label htmlFor="round-end" className="text-sm font-semibold">
-                  Hasta
-                </label>
-                <TimePicker
-                  id="round-end"
-                  value={form.fin}
-                  onChange={(value) => change('fin', value)}
-                />
-              </div>
             </div>
-            {form.fin < form.inicio && (
+            <fieldset className="space-y-3">
+              <legend className="mb-2 text-sm font-bold">
+                Recorrido en orden de visita
+              </legend>
+              {form.paradas.map((stop, index) => (
+                <div
+                  key={index}
+                  className="space-y-3 rounded-xl border border-line bg-soft/40 p-3"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="mr-auto text-sm font-bold">
+                      Lugar {index + 1}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={index === 0}
+                      aria-label={`Subir lugar ${index + 1}`}
+                      onClick={() => moveStop(index, -1)}
+                    >
+                      ↑
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={index === form.paradas.length - 1}
+                      aria-label={`Bajar lugar ${index + 1}`}
+                      onClick={() => moveStop(index, 1)}
+                    >
+                      ↓
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={form.paradas.length === 1}
+                      onClick={() =>
+                        change(
+                          'paradas',
+                          form.paradas.filter((_, i) => i !== index),
+                        )
+                      }
+                    >
+                      Quitar lugar
+                    </Button>
+                  </div>
+                  <label className="block text-sm font-semibold">
+                    Lugar
+                    <input
+                      className="input mt-1"
+                      required
+                      maxLength={300}
+                      value={stop.lugar}
+                      onChange={(e) =>
+                        changeStop(index, 'lugar', e.target.value)
+                      }
+                    />
+                  </label>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="min-w-0">
+                      <label
+                        htmlFor={`round-start-${index}`}
+                        className="text-sm font-semibold"
+                      >
+                        Desde
+                      </label>
+                      <TimePicker
+                        id={`round-start-${index}`}
+                        value={stop.inicio}
+                        onChange={(value) => changeStop(index, 'inicio', value)}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <label
+                        htmlFor={`round-end-${index}`}
+                        className="text-sm font-semibold"
+                      >
+                        Hasta
+                      </label>
+                      <TimePicker
+                        id={`round-end-${index}`}
+                        value={stop.fin}
+                        onChange={(value) => changeStop(index, 'fin', value)}
+                      />
+                    </div>
+                  </div>
+                  {routeTimeline(form.paradas)[index].startDay > 0 && (
+                    <p className="text-xs text-muted">
+                      Visita {routeTimeline(form.paradas)[index].startDay}{' '}
+                      día(s) después de la fecha de inicio.
+                    </p>
+                  )}
+                  {stop.fin < stop.inicio && (
+                    <p className="text-xs text-muted">
+                      La visita termina al día siguiente.
+                    </p>
+                  )}
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={form.paradas.length >= 50}
+                onClick={() =>
+                  change('paradas', [
+                    ...form.paradas,
+                    {
+                      lugar: '',
+                      inicio: form.paradas.at(-1).fin,
+                      fin: form.paradas.at(-1).fin,
+                    },
+                  ])
+                }
+              >
+                Agregar lugar
+              </Button>
               <p className="text-xs text-muted">
-                Esta ronda termina al día siguiente.
+                Los horarios siguen el orden del recorrido. Si una hora es
+                anterior al fin de la visita previa, corresponde al día
+                siguiente.
               </p>
-            )}
+            </fieldset>
             <fieldset className="rounded-xl border border-line p-3">
               <legend className="px-1 text-sm font-semibold">
                 Jefes de seguridad y supervisores

@@ -155,12 +155,12 @@ export function TimePicker({ value, onChange, id }) {
       `${String((hour % 12) + (period === 'PM' ? 12 : 0)).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
     )
   return (
-    <div className="flex items-center gap-1 rounded-xl border border-line bg-soft p-1">
-      <Clock3 className="mx-1 size-4 shrink-0 text-accent" />
+    <div className="grid w-full min-w-[190px] grid-cols-[16px_minmax(48px,1fr)_8px_minmax(48px,1fr)_minmax(60px,1.2fr)] items-center gap-1 rounded-xl border border-line bg-soft p-1">
+      <Clock3 className="size-4 shrink-0 text-accent" />
       <select
         id={id}
         aria-label="Hora"
-        className="input !border-0 !px-2"
+        className="input min-w-0 !border-0 !py-2 !pl-2 !pr-5 tabular-nums"
         value={h % 12 || 12}
         onChange={(e) =>
           change(Number(e.target.value), m, h < 12 ? 'AM' : 'PM')
@@ -175,7 +175,7 @@ export function TimePicker({ value, onChange, id }) {
       <span>:</span>
       <select
         aria-label="Minutos"
-        className="input !border-0 !px-2"
+        className="input min-w-0 !border-0 !py-2 !pl-2 !pr-5 tabular-nums"
         value={m}
         onChange={(e) =>
           change(h % 12 || 12, Number(e.target.value), h < 12 ? 'AM' : 'PM')
@@ -189,7 +189,7 @@ export function TimePicker({ value, onChange, id }) {
       </select>
       <select
         aria-label="AM o PM"
-        className="input !border-0 !px-2"
+        className="input min-w-0 !border-0 !py-2 !pl-2 !pr-5 tabular-nums"
         value={h < 12 ? 'AM' : 'PM'}
         onChange={(e) => change(h % 12 || 12, m, e.target.value)}
       >

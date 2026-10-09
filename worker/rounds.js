@@ -1,3 +1,4 @@
+import { roundStops } from '../src/roundRoute.js'
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -43,6 +44,7 @@ export async function handleRounds(request, env, user) {
     return json({
       rounds: rows.results.map((r) => ({
         ...JSON.parse(r.payload),
+        paradas: roundStops(JSON.parse(r.payload)),
         id: r.id,
         createdAt: r.created_at,
       })),
@@ -79,16 +81,42 @@ export async function handleRounds(request, env, user) {
     }
     try {
       const input = await request.json()
+      const rawStops = roundStops(input)
+      if (
+        !Array.isArray(rawStops) ||
+        rawStops.length < 1 ||
+        rawStops.length > 50
+      )
+        throw new Error('Agrega entre 1 y 50 lugares al recorrido.')
+      const paradas = rawStops.map((stop) => ({
+        lugar: String(stop.lugar || '')
+          .trim()
+          .slice(0, 300),
+        inicio: stop.inicio,
+        fin: stop.fin,
+      }))
+      if (
+        paradas.some(
+          (stop) =>
+            !stop.lugar ||
+            !['inicio', 'fin'].every((key) =>
+              /^([01]\d|2[0-3]):[0-5]\d$/.test(stop[key]),
+            ) ||
+            stop.inicio === stop.fin,
+        )
+      )
+        throw new Error(
+          'Completa el lugar y un horario válido para cada parada del recorrido.',
+        )
       const payload = {
         titulo: String(input.titulo || '')
           .trim()
           .slice(0, 160),
-        lugar: String(input.lugar || '')
-          .trim()
-          .slice(0, 300),
+        paradas,
+        lugar: paradas.map((stop) => stop.lugar).join(' → '),
         fecha: input.fecha,
-        inicio: input.inicio,
-        fin: input.fin,
+        inicio: paradas[0].inicio,
+        fin: paradas[paradas.length - 1].fin,
         comentarios: String(input.comentarios || '').slice(0, 3000),
         asignados: [...new Set(input.asignados || [])],
       }
@@ -99,7 +127,6 @@ export async function handleRounds(request, env, user) {
         !['inicio', 'fin'].every((k) =>
           /^([01]\d|2[0-3]):[0-5]\d$/.test(payload[k]),
         ) ||
-        payload.inicio === payload.fin ||
         !payload.asignados.length ||
         payload.asignados.length > 100
       )

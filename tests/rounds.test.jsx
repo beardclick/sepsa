@@ -1,6 +1,6 @@
 import React from 'react'
 import { it, expect, vi, afterEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import RoundsPage from '../src/pages/RoundsPage'
 let role = 'admin'
 vi.mock('../src/store', () => ({
@@ -58,12 +58,44 @@ it('el supervisor consulta horarios y comentarios sin acciones de administració
 
 it('permite retirar responsables eliminados de una ronda existente', async () => {
   role = 'admin'
-  vi.stubGlobal('fetch', vi.fn(async path => ({ ok: true, json: async () => path.endsWith('assignees') ? { users: [] } : { rounds: [round] } })))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path) => ({
+      ok: true,
+      json: async () =>
+        path.endsWith('assignees') ? { users: [] } : { rounds: [round] },
+    })),
+  )
   render(<RoundsPage />)
   await screen.findByText('Ronda accesos')
   fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
-  const missing = screen.getByRole('checkbox', { name: /Usuario no disponible/ })
+  const missing = screen.getByRole('checkbox', {
+    name: /Usuario no disponible/,
+  })
   expect(missing.checked).toBe(true)
   fireEvent.click(missing)
-  expect(screen.getByRole('button', { name: 'Guardar ronda' }).disabled).toBe(true)
+  expect(screen.getByRole('button', { name: 'Guardar ronda' }).disabled).toBe(
+    true,
+  )
+})
+
+it('permite agregar lugares, ordenar el recorrido y consultar sus detalles sin editar', async () => {
+  role = 'admin'
+  server()
+  render(<RoundsPage />)
+  await screen.findByText('Ronda accesos')
+  fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Agregar lugar' }))
+  const places = screen.getAllByRole('textbox', { name: 'Lugar' })
+  fireEvent.change(places[1], { target: { value: 'Puerto' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Subir lugar 2' }))
+  expect(screen.getAllByRole('textbox', { name: 'Lugar' })[0].value).toBe(
+    'Puerto',
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Ver detalles' }))
+  const dialog = within(screen.getByRole('dialog'))
+  expect(dialog.getByText('1. David')).toBeTruthy()
+  expect(dialog.getByText('Verificar puertas')).toBeTruthy()
+  expect(dialog.queryByRole('textbox')).toBeNull()
 })

@@ -220,7 +220,10 @@ try {
   })
   const roundInput = {
     titulo: 'Ronda nocturna',
-    lugar: 'David, puesto central',
+    paradas: [
+      { lugar: 'David, puesto central', inicio: '22:00', fin: '23:00' },
+      { lugar: 'Puerto', inicio: '23:30', fin: '01:00' },
+    ],
     fecha: '2026-10-10',
     inicio: '22:00',
     fin: '01:00',
@@ -249,6 +252,22 @@ try {
   )
   const round = await request('/api/rounds', 'POST', roundInput, admin.cookie)
   assert.equal(round.status, 201, JSON.stringify(round))
+  assert.equal(round.round.paradas.length, 2)
+  assert.equal(round.round.paradas[1].lugar, 'Puerto')
+  assert.equal(
+    (
+      await request(
+        '/api/rounds',
+        'POST',
+        {
+          ...roundInput,
+          paradas: [{ lugar: 'Puerto', inicio: '24:00', fin: '01:00' }],
+        },
+        admin.cookie,
+      )
+    ).status,
+    400,
+  )
   rounds.push(round.round.id)
   const hidden = await request(
     '/api/rounds',
