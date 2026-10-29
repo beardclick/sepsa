@@ -1,3 +1,4 @@
+import { notifyTelegram, formatIncident } from './telegram.js'
 const json = (value, status = 200) =>
   new Response(JSON.stringify(value), {
     status,
@@ -211,6 +212,8 @@ export async function handleIncidents(request, env, user, tokenHash) {
           createdBy: user.id,
           id: saved[0].id,
         })
+      if (!imported && saved.length)
+        try { await notifyTelegram(env, 'incidents', formatIncident(saved[0])) } catch (error) { console.error('Incident telegram:', error) }
       return json(
         imported ? { imported: saved.length } : { incident: saved[0] },
         201,

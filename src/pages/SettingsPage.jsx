@@ -11,9 +11,10 @@ import { exportAttachments, importAttachments } from '../files'
 import { RESOURCES } from '../config'
 import { useStore } from '../store'
 import { Button, Card, Modal } from '../components/ui'
+import TelegramSettings from '../components/TelegramSettings'
 
 export default function SettingsPage() {
-  const { data, reset, clear, replaceAll, can } = useStore()
+  const { data, reset, clear, replaceAll, can, user } = useStore()
   const [confirm, setConfirm] = useState(null)
   const [msg, setMsg] = useState('')
   const file = useRef(null)
@@ -185,6 +186,10 @@ export default function SettingsPage() {
           </p>
         </div>
       </Card>
+
+      {['admin', 'superadmin'].includes(user?.role) && (
+        <TelegramSettings key={user.id} />
+      )}
 
       <Card className="divide-y divide-line">
         {items.map((it) => (

@@ -1,6 +1,7 @@
 import { handleRounds } from './rounds.js'
 import { handleShifts } from './shifts.js'
 import { handleIncidents } from './incidents.js'
+import { handleTelegram, handleTelegramWebhook } from './telegram.js'
 export { IncidentHub } from './incident-hub.js'
 const SESSION_COOKIE = 'sepsa_session'
 const SESSION_SECONDS = 60 * 60 * 24 * 7
@@ -363,6 +364,7 @@ async function api(request, env) {
         })
       : response({ error: 'No has iniciado sesión.' }, 401)
   if (!user) return response({ error: 'No has iniciado sesión.' }, 401)
+  if (path.startsWith('/api/telegram/')) return handleTelegram(request, env, user)
   if (path.startsWith('/api/rounds')) return handleRounds(request, env, user)
   if (path.startsWith('/api/shifts')) return handleShifts(request, env, user)
   if (path.startsWith('/api/incidents') || path === '/api/incident-directory')
@@ -695,6 +697,8 @@ async function api(request, env) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url)
+    if (url.pathname === '/telegram/webhook')
+      return handleTelegramWebhook(request, env)
     if (url.pathname.startsWith('/api/')) {
       try {
         return await api(request, env)

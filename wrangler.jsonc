@@ -17,11 +17,12 @@
   "durable_objects": {
     "bindings": [{ "name": "INCIDENT_HUB", "class_name": "IncidentHub" }]
   },
+  "ai": { "binding": "AI" },
   "migrations": [{ "tag": "incident-hub-v1", "new_sqlite_classes": ["IncidentHub"] }],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*"],
+    "run_worker_first": ["/api/*", "/telegram/*"],
     "not_found_handling": "single-page-application"
   }
 }

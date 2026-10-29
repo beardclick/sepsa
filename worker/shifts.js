@@ -1,3 +1,4 @@
+import { notifyTelegram, formatShifts } from './telegram.js'
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), {
     status,
@@ -97,6 +98,8 @@ export async function handleShifts(request, env, user) {
           ).bind(id, payload.agente, JSON.stringify(payload)),
         ),
       )
+      if (!imported && records.length)
+        try { await notifyTelegram(env, 'shifts', formatShifts(records)) } catch (error) { console.error('Shift telegram:', error) }
       return json({ shifts: records }, 201)
     } catch (error) {
       return json({ error: error.message }, 400)

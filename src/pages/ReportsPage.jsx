@@ -10,8 +10,9 @@ import {
 import { fdate } from '../config'
 import { Card, Button, Modal } from '../components/ui'
 import { DatePicker } from '../components/DateTimePicker'
+import { telegramRequest } from '../components/TelegramSettings'
 export default function ReportsPage() {
-  const { data, can, add, update, remove, reportPreferences } = useStore()
+  const { data, can, add, update, remove, reportPreferences, user } = useStore()
   const available = Object.keys(REPORT_SECTIONS).filter((k) => can(k))
   const [fecha, setFecha] = useState(reportDate()),
     [sections, setSections] = useState(
@@ -23,6 +24,23 @@ export default function ReportsPage() {
     [creating, setCreating] = useState(false),
     [pending, setPending] = useState(null)
   const report = data.reports.find((r) => r.id === selected)
+  const [telegramSending, setTelegramSending] = useState(null)
+  const sendTelegram = async (r) => {
+    setTelegramSending(r.id)
+    setError('')
+    try {
+      await telegramRequest('report', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ report: { ...r, sections: r.sections.filter((s) => can(s.key)) } }),
+      })
+      setError('Informe enviado al canal de Telegram.')
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setTelegramSending(null)
+    }
+  }
   const openCreator = (existing) => {
     setFecha(existing?.fecha || reportDate())
     setSections(
@@ -254,6 +272,15 @@ export default function ReportsPage() {
                 Ver
               </Button>
               <Button onClick={() => download(r)}>Descargar PDF</Button>
+              {['admin', 'superadmin'].includes(user?.role) && (
+                <Button
+                  variant="ghost"
+                  disabled={!!telegramSending}
+                  onClick={() => sendTelegram(r)}
+                >
+                  {telegramSending === r.id ? 'Enviando…' : 'Enviar a Telegram'}
+                </Button>
+              )}
               {can('reports', 'update') && (
                 <Button variant="ghost" onClick={() => openCreator(r)}>
                   Actualizar
